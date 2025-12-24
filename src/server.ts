@@ -5,6 +5,8 @@ import { renderFlow, ValidationError, BackpressureError, RenderError } from "./f
 import { retrieveFlow, NotFoundError } from "./flows/retrieve";
 import { asyncRenderFlow } from "./flows/render-async";
 import { jobStatusFlow, JobNotFoundError } from "./flows/job-status";
+import { renderTerminalFlow } from "./flows/render-terminal";
+import { CatimgError } from "./errors/catimg-error";
 import { loggerAtom } from "./atoms/logger";
 import { browserPoolAtom } from "./atoms/browser-pool";
 import { jobProcessorAtom } from "./atoms/job-processor";
@@ -111,6 +113,13 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
+  if (error instanceof CatimgError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const message = error instanceof Error ? error.message : "Internal server error";
   return new Response(JSON.stringify({ error: message }), {
     status: 500,
@@ -200,6 +209,34 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
             }), {
               status: 202,
               headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+            });
+          } finally {
+            await ctx.close();
+          }
+        }
+
+        if (req.method === "POST" && url.pathname === "/render/terminal") {
+          if (authConfig.enabled && authConfig.credentials) {
+            const authHeader = req.headers.get("authorization");
+            checkBasicAuth(authHeader, authConfig.credentials.username, authConfig.credentials.password);
+          }
+
+          const body = await req.json();
+
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
+
+          try {
+            const result = await ctx.exec({
+              flow: renderTerminalFlow,
+              rawInput: body,
+            });
+
+            return new Response(result.output, {
+              status: 200,
+              headers: {
+                "Content-Type": "text/plain; charset=utf-8",
+                "X-Request-Id": requestId,
+              },
             });
           } finally {
             await ctx.close();
