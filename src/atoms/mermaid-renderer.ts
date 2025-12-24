@@ -38,8 +38,11 @@ export const mermaidRendererAtom = atom({
           };
 
           // For PNG, use deviceScaleFactor to increase resolution
+          // viewport requires width, height, and deviceScaleFactor
           if (outputType === "png" && scale > 1) {
             renderOptions.viewport = {
+              width: 800,
+              height: 600,
               deviceScaleFactor: scale,
             };
           }
