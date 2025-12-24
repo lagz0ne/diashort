@@ -55,3 +55,4 @@ title: Diashort Architecture - Table of Contents
 | [adr-20251223-mermaid-browser-pool](adr/adr-20251223-mermaid-browser-pool.md) | Replace mmdc CLI with Puppeteer Browser Pool | Accepted |
 | [adr-20251223-split-boundaries](adr/adr-20251223-split-component-boundaries.md) | Split Component Boundaries | Proposed |
 | [adr-20251224-catimg-terminal-output](adr/adr-20251224-catimg-terminal-output.md) | Add catimg Terminal Output for CLI Display | Accepted |
+| [adr-20251224-chafa-terminal-renderer](adr/adr-20251224-chafa-terminal-renderer.md) | Replace catimg with chafa for Higher Quality | Proposed |
