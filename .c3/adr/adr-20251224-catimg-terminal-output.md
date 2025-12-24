@@ -1,14 +1,14 @@
 ---
 id: adr-20251224-catimg-terminal-output
 title: Add catimg Terminal Output for CLI Display
-status: proposed
+status: accepted
 date: 2024-12-24
 ---
 
 # Add catimg Terminal Output for CLI Display
 
 ## Status
-**Proposed** - 2024-12-24
+**Accepted** - 2024-12-24
 
 ## Problem/Requirement
 
