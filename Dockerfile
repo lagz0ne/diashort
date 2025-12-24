@@ -36,7 +36,8 @@ FROM base AS release
 COPY --from=install /app/node_modules ./node_modules
 COPY . .
 
-RUN bun install -g @mermaid-js/mermaid-cli && \
+RUN mkdir -p /app/data && \
+    bun install -g @mermaid-js/mermaid-cli && \
     chmod 755 /root && \
     chmod -R 755 /root/.bun && \
     chown -R bun:bun /app
