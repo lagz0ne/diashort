@@ -6,7 +6,7 @@ Diagram shortlink service - render Mermaid and D2 diagrams to images and get sha
 
 - Render Mermaid and D2 diagrams to SVG or PNG
 - Async job-based rendering with polling
-- Terminal output via catimg for CLI display
+- Terminal output via chafa for CLI display (symbols, sixels, kitty, iterm)
 - Cache rendered diagrams with configurable TTL
 - Optional basic auth protection
 - Backpressure handling with configurable queue limits
@@ -85,17 +85,27 @@ Check job status and get the shortlink when complete.
 
 ### POST /render/terminal
 
-Render a diagram and stream catimg output for terminal display.
+Render a diagram and convert to terminal output via chafa.
 
 **Request:**
 ```json
 {
   "source": "graph TD; A-->B;",
-  "format": "mermaid"
+  "format": "mermaid",
+  "width": 80,
+  "scale": 2,
+  "output": "symbols"
 }
 ```
 
-**Response:** Streamed catimg ANSI escape sequences for terminal display.
+**Parameters:**
+- `source`: Diagram source code (required)
+- `format`: "mermaid" or "d2" (required)
+- `width`: Terminal width in columns (default: 80)
+- `scale`: PNG render scale 1-4 for quality (default: 2)
+- `output`: Terminal format - "symbols", "sixels", "kitty", "iterm" (default: symbols)
+
+**Response:** Terminal graphics output (ANSI escape sequences or native protocol).
 
 ### GET /d/:shortlink
 
@@ -131,7 +141,7 @@ Health check endpoint.
 | `JOB_DB_PATH` | SQLite database path | ./data/jobs.db |
 | `JOB_RETENTION_MS` | Job record retention | 3600000 |
 | `BASE_URL` | Base URL for generated links | (empty) |
-| `CATIMG_PATH` | Path to catimg binary | catimg |
+| `CHAFA_PATH` | Path to chafa binary | chafa |
 
 ## Docker
 

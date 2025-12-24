@@ -79,9 +79,9 @@ export const baseUrlTag = tag<string>({
   default: "",
 });
 
-export const catimgPathTag = tag<string>({
-  label: "catimg-path",
-  default: "catimg",
+export const chafaPathTag = tag<string>({
+  label: "chafa-path",
+  default: "chafa",
 });
 
 export type SpawnFn = typeof Bun.spawn;
@@ -184,7 +184,7 @@ export function loadConfigTags(
 
   const baseUrl = getEnv(env, "BASE_URL") ?? "";
 
-  const catimgPath = getEnv(env, "CATIMG_PATH") ?? "catimg";
+  const chafaPath = getEnv(env, "CHAFA_PATH") ?? "chafa";
 
   return [
     logLevelTag(logLevel),
@@ -196,7 +196,7 @@ export function loadConfigTags(
     queueConfigTag({ maxConcurrent: queueMaxConcurrent, maxWaiting: queueMaxWaiting }),
     browserPoolSizeTag(browserPoolSize),
     baseUrlTag(baseUrl),
-    catimgPathTag(catimgPath),
+    chafaPathTag(chafaPath),
     jobConfigTag({
       dbPath: jobDbPath,
       pollIntervalMs: jobPollInterval,

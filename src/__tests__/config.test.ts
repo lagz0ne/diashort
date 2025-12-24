@@ -11,7 +11,7 @@ import {
   queueConfigTag,
   browserPoolSizeTag,
   baseUrlTag,
-  catimgPathTag,
+  chafaPathTag,
   jobConfigTag,
 } from "../config/tags";
 
@@ -161,20 +161,20 @@ describe("Config Tags", () => {
       expect(baseUrlTag.find(tagged)).toBe("");
     });
 
-    it("parses CATIMG_PATH from env", () => {
+    it("parses CHAFA_PATH from env", () => {
       const env = {
-        CATIMG_PATH: "/usr/local/bin/catimg",
+        CHAFA_PATH: "/usr/local/bin/chafa",
       };
 
       const tagged = loadConfigTags(env);
-      expect(catimgPathTag.find(tagged)).toBe("/usr/local/bin/catimg");
+      expect(chafaPathTag.find(tagged)).toBe("/usr/local/bin/chafa");
     });
 
-    it("defaults CATIMG_PATH to 'catimg'", () => {
+    it("defaults CHAFA_PATH to 'chafa'", () => {
       const env = {};
 
       const tagged = loadConfigTags(env);
-      expect(catimgPathTag.find(tagged)).toBe("catimg");
+      expect(chafaPathTag.find(tagged)).toBe("chafa");
     });
   });
 

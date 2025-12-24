@@ -41,7 +41,7 @@ title: Diashort Architecture - Table of Contents
 | [c3-110](c3-1-api-server/c3-110-job-store.md) | Job Store | Job persistence client (uses c3-2) |
 | [c3-111](c3-1-api-server/c3-111-job-processor.md) | Job Processor | Background job processor |
 | [c3-113](c3-1-api-server/c3-113-browser-pool.md) | Browser Pool | Puppeteer instance pool for mermaid |
-| [c3-115](c3-1-api-server/c3-115-terminal-renderer.md) | Terminal Renderer | PNG to terminal via catimg |
+| [c3-115](c3-1-api-server/c3-115-terminal-renderer.md) | Terminal Renderer | PNG to terminal via chafa |
 
 ### c3-2 - SQLite Database
 
@@ -55,4 +55,4 @@ title: Diashort Architecture - Table of Contents
 | [adr-20251223-mermaid-browser-pool](adr/adr-20251223-mermaid-browser-pool.md) | Replace mmdc CLI with Puppeteer Browser Pool | Accepted |
 | [adr-20251223-split-boundaries](adr/adr-20251223-split-component-boundaries.md) | Split Component Boundaries | Proposed |
 | [adr-20251224-catimg-terminal-output](adr/adr-20251224-catimg-terminal-output.md) | Add catimg Terminal Output for CLI Display | Accepted |
-| [adr-20251224-chafa-terminal-renderer](adr/adr-20251224-chafa-terminal-renderer.md) | Replace catimg with chafa for Higher Quality | Proposed |
+| [adr-20251224-chafa-terminal-renderer](adr/adr-20251224-chafa-terminal-renderer.md) | Replace catimg with chafa for Higher Quality | Accepted |

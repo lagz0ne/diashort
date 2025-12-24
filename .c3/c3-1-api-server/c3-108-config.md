@@ -87,7 +87,7 @@ flowchart TD
 | cacheConfigTag | CACHE_TTL, CACHE_GC_INTERVAL | 300000, 60000 | object |
 | queueConfigTag | QUEUE_MAX_CONCURRENT, QUEUE_MAX_WAITING | 10, 50 | object |
 | baseUrlTag | BASE_URL | (empty) | string |
-| catimgPathTag | CATIMG_PATH | catimg | string |
+| chafaPathTag | CHAFA_PATH | chafa | string |
 
 ## References
 

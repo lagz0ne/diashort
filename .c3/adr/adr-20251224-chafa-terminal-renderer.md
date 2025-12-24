@@ -1,14 +1,14 @@
 ---
 id: adr-20251224-chafa-terminal-renderer
 title: Replace catimg with chafa for Higher Quality Terminal Output
-status: proposed
+status: accepted
 date: 2024-12-24
 ---
 
 # Replace catimg with chafa for Higher Quality Terminal Output
 
 ## Status
-**Proposed** - 2024-12-24
+**Accepted** - 2024-12-24
 
 ## Problem/Requirement
 

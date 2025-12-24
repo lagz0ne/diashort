@@ -330,17 +330,17 @@ describe("Integration Tests", () => {
         }),
       });
 
-      // Note: This test will fail if catimg is not installed or browser pool has issues
-      // In CI, you may need to skip this or mock catimg
+      // Note: This test will fail if chafa is not installed or browser pool has issues
+      // In CI, you may need to skip this or mock chafa
       if (res.status === 500) {
         const body = await res.json();
-        // If catimg is not installed or render fails, we skip the test
+        // If chafa is not installed or render fails, we skip the test
         // Browser pool errors include: "Target closed", "Connection closed"
-        if (body.error?.includes("catimg") ||
+        if (body.error?.includes("chafa") ||
             body.error?.includes("Render failed") ||
             body.error?.includes("Target closed") ||
             body.error?.includes("Connection closed")) {
-          console.log("catimg not installed or render failed, skipping integration test");
+          console.log("chafa not installed or render failed, skipping integration test");
           return;
         }
         // If it's a different error, we want the test to fail
@@ -371,11 +371,11 @@ describe("Integration Tests", () => {
 
       if (res.status === 500) {
         const body = await res.json();
-        if (body.error?.includes("catimg") ||
+        if (body.error?.includes("chafa") ||
             body.error?.includes("Render failed") ||
             body.error?.includes("Target closed") ||
             body.error?.includes("Connection closed")) {
-          console.log("catimg not installed or render failed, skipping integration test");
+          console.log("chafa not installed or render failed, skipping integration test");
           return;
         }
         throw new Error(`Unexpected error: ${body.error}`);

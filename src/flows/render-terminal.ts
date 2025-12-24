@@ -1,7 +1,7 @@
 import { flow } from "@pumped-fn/lite";
 import { queueAtom } from "../atoms/queue";
 import { rendererService } from "../atoms/renderer";
-import { terminalRendererAtom } from "../atoms/terminal-renderer";
+import { terminalRendererAtom, type TerminalOutputFormat } from "../atoms/terminal-renderer";
 import { loggerAtom } from "../atoms/logger";
 import { ValidationError } from "./render";
 
@@ -12,6 +12,7 @@ export interface TerminalRenderInput {
   format: DiagramFormat;
   width?: number;
   scale?: number;
+  output?: TerminalOutputFormat;
 }
 
 export interface TerminalRenderResult {
@@ -50,11 +51,21 @@ function parseTerminalRenderInput(body: unknown): TerminalRenderInput {
     scale = obj.scale;
   }
 
+  let output: TerminalOutputFormat | undefined;
+  if (obj.output !== undefined) {
+    const validOutputs = ["symbols", "sixels", "kitty", "iterm"];
+    if (typeof obj.output !== "string" || !validOutputs.includes(obj.output)) {
+      throw new ValidationError("output must be one of: symbols, sixels, kitty, iterm");
+    }
+    output = obj.output as TerminalOutputFormat;
+  }
+
   return {
     source: obj.source,
     format,
     width,
     scale,
+    output,
   };
 }
 
@@ -88,11 +99,14 @@ export const renderTerminalFlow = flow({
 
     logger.debug({ pngSize: pngBytes.length }, "PNG rendered, converting to terminal output");
 
-    // Convert PNG to terminal output via catimg
-    const output = await terminalRenderer.render(pngBytes, { width: input.width });
+    // Convert PNG to terminal output via chafa
+    const terminalOutput = await terminalRenderer.render(pngBytes, {
+      width: input.width,
+      format: input.output,
+    });
 
-    logger.info({ format: input.format, outputLength: output.length }, "Terminal render complete");
+    logger.info({ format: input.format, outputFormat: input.output, outputLength: terminalOutput.length }, "Terminal render complete");
 
-    return { output };
+    return { output: terminalOutput };
   },
 });

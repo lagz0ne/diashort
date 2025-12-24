@@ -6,7 +6,7 @@ import { retrieveFlow, NotFoundError } from "./flows/retrieve";
 import { asyncRenderFlow } from "./flows/render-async";
 import { jobStatusFlow, JobNotFoundError } from "./flows/job-status";
 import { renderTerminalFlow } from "./flows/render-terminal";
-import { CatimgError } from "./errors/catimg-error";
+import { ChafaError } from "./atoms/terminal-renderer";
 import { loggerAtom } from "./atoms/logger";
 import { browserPoolAtom } from "./atoms/browser-pool";
 import { jobProcessorAtom } from "./atoms/job-processor";
@@ -113,7 +113,7 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
-  if (error instanceof CatimgError) {
+  if (error instanceof ChafaError) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -344,20 +344,27 @@ Response (completed):
   {"jobId": "job_abc123", "status": "completed", "shortlink": "abc12345", "error": null, "url": "/d/abc12345"}
 
 ### POST /render/terminal
-Render a diagram and stream catimg output for terminal display.
+Render a diagram and stream terminal output via chafa.
 
 Request:
   curl -X POST ${url.origin}/render/terminal \\${curlAuth}
     -H "Content-Type: application/json" \\
-    -d '{"source": "graph TD; A-->B;", "format": "mermaid", "width": 120, "scale": 2}'
+    -d '{"source": "graph TD; A-->B;", "format": "mermaid", "width": 120, "output": "sixels"}'
 
 Parameters:
   - source: Diagram source code (required)
   - format: "mermaid" or "d2" (required)
   - width: Terminal width in columns (default: 80)
   - scale: PNG render scale 1-4 for quality (default: 2)
+  - output: Terminal format - "symbols", "sixels", "kitty", "iterm" (default: symbols)
 
-Response: Streamed ANSI escape sequences for terminal display.
+Output formats:
+  - symbols: Unicode art, works everywhere (default)
+  - sixels: High quality, for xterm/mlterm/foot
+  - kitty: Native protocol for Kitty terminal
+  - iterm: Native protocol for iTerm2
+
+Response: Terminal graphics output (ANSI or native protocol).
 
 ### GET /d/:shortlink
 Retrieve a rendered diagram by its shortlink.
