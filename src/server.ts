@@ -1,5 +1,5 @@
 import { createScope, type Lite, atom, tags } from "@pumped-fn/lite";
-import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requestIdTag } from "./config/tags";
+import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requestIdTag, baseUrlTag } from "./config/tags";
 import { AuthError } from "./extensions/auth";
 import { renderFlow, ValidationError, BackpressureError, RenderError } from "./flows/render";
 import { retrieveFlow, NotFoundError } from "./flows/retrieve";
@@ -120,7 +120,7 @@ function mapErrorToResponse(error: unknown): Response {
 
 export async function startServer(): Promise<{ server: ReturnType<typeof Bun.serve>; scope: Lite.Scope }> {
   const configTags = loadConfigTags(process.env);
-  
+
   const scope = createScope({
     tags: configTags,
   });
@@ -128,6 +128,10 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
   const port = await scope.resolve(serverConfigAtom);
   const logger = await scope.resolve(loggerAtom);
   const authConfig = await scope.resolve(authConfigAtom);
+
+  // Extract baseUrl from configTags
+  const baseUrlValue = configTags.find((t) => t.key === baseUrlTag.key);
+  const baseUrl = baseUrlValue ? baseUrlValue.value : "";
 
   // Warm up browser pool for fast first requests
   const browserPool = await scope.resolve(browserPoolAtom);
@@ -167,7 +171,7 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
                 rawInput: body,
               });
 
-              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}`, cached: result.cached }), {
+              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `${baseUrl}/d/${result.shortlink}`, cached: result.cached }), {
                 status: 200,
                 headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
               });
@@ -181,7 +185,7 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
 
             // Cache hit - return 200 with shortlink
             if (result.mode === "sync") {
-              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}`, cached: result.cached }), {
+              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `${baseUrl}/d/${result.shortlink}`, cached: result.cached }), {
                 status: 200,
                 headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
               });
