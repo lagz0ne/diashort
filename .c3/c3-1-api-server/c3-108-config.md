@@ -86,6 +86,7 @@ flowchart TD
 | authCredentialsTag | AUTH_USER, AUTH_PASS | null | object or null |
 | cacheConfigTag | CACHE_TTL, CACHE_GC_INTERVAL | 300000, 60000 | object |
 | queueConfigTag | QUEUE_MAX_CONCURRENT, QUEUE_MAX_WAITING | 10, 50 | object |
+| baseUrlTag | BASE_URL | (empty) | string |
 
 ## References
 
