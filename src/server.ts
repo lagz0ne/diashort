@@ -167,7 +167,7 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
                 rawInput: body,
               });
 
-              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}` }), {
+              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}`, cached: result.cached }), {
                 status: 200,
                 headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
               });
@@ -181,7 +181,7 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
 
             // Cache hit - return 200 with shortlink
             if (result.mode === "sync") {
-              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}` }), {
+              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}`, cached: result.cached }), {
                 status: 200,
                 headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
               });
