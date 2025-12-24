@@ -68,8 +68,8 @@ flowchart TD
 
 | Dependency | Component | Purpose |
 |------------|-----------|---------|
-| Config | c3-107 | Get TTL and GC interval settings |
-| Logger | c3-108 | Log cache operations |
+| Config | c3-108 | Get TTL and GC interval settings |
+| Logger | c3-109 | Log cache operations |
 
 ### Decision Points
 
