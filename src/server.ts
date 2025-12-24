@@ -316,7 +316,7 @@ To enable: Set AUTH_ENABLED=true, AUTH_USER, and AUTH_PASS environment variables
 ## Endpoints
 
 ### POST /render
-Render a diagram and get a shortlink.
+Submit a diagram for async rendering.
 
 Request:
   curl -X POST ${url.origin}/render \\${curlAuth}
@@ -324,12 +324,34 @@ Request:
     -d '{"source": "graph TD; A-->B;", "format": "mermaid", "outputType": "svg"}'
 
 Response:
-  {"shortlink": "abc12345", "url": "/d/abc12345"}
+  {"jobId": "job_abc123", "status": "pending", "statusUrl": "/jobs/job_abc123"}
 
 Parameters:
   - source: Diagram source code (required)
   - format: "mermaid" or "d2" (required)
   - outputType: "svg" or "png" (default: "svg")
+
+### GET /jobs/:jobId
+Check job status and get the shortlink when complete.
+
+Example:
+  curl ${url.origin}/jobs/job_abc123
+
+Response (pending):
+  {"jobId": "job_abc123", "status": "pending", "shortlink": null, "error": null, "url": null}
+
+Response (completed):
+  {"jobId": "job_abc123", "status": "completed", "shortlink": "abc12345", "error": null, "url": "/d/abc12345"}
+
+### POST /render/terminal
+Render a diagram and stream catimg output for terminal display.
+
+Request:
+  curl -X POST ${url.origin}/render/terminal \\${curlAuth}
+    -H "Content-Type: application/json" \\
+    -d '{"source": "graph TD; A-->B;", "format": "mermaid"}'
+
+Response: Streamed ANSI escape sequences for terminal display.
 
 ### GET /d/:shortlink
 Retrieve a rendered diagram by its shortlink.

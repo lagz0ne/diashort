@@ -5,18 +5,26 @@ Diagram shortlink service - render Mermaid and D2 diagrams to images and get sha
 ## Features
 
 - Render Mermaid and D2 diagrams to SVG or PNG
+- Async job-based rendering with polling
+- Terminal output via catimg for CLI display
 - Cache rendered diagrams with configurable TTL
-- Basic auth protection for render endpoint
+- Optional basic auth protection
 - Backpressure handling with configurable queue limits
+- Browser pool for fast Mermaid rendering
 
 ## Quick Start
+
+### Using Docker (recommended)
+
+```bash
+docker run -p 3000:3000 ghcr.io/lagz0ne/diashort:main
+```
+
+### From Source
 
 ```bash
 # Install dependencies
 bun install
-
-# Copy env and configure
-cp .env.example .env
 
 # Run in development
 bun run dev
@@ -29,11 +37,7 @@ bun test
 
 ### POST /render
 
-Render a diagram and get a shortlink.
-
-**Headers:**
-- `Authorization: Basic <base64(user:pass)>` (required)
-- `Content-Type: application/json`
+Submit a diagram for async rendering.
 
 **Request:**
 ```json
@@ -47,10 +51,51 @@ Render a diagram and get a shortlink.
 **Response:**
 ```json
 {
+  "jobId": "job_abc123",
+  "status": "pending",
+  "statusUrl": "/jobs/job_abc123"
+}
+```
+
+### GET /jobs/:jobId
+
+Check job status and get the shortlink when complete.
+
+**Response (pending):**
+```json
+{
+  "jobId": "job_abc123",
+  "status": "pending",
+  "shortlink": null,
+  "error": null,
+  "url": null
+}
+```
+
+**Response (completed):**
+```json
+{
+  "jobId": "job_abc123",
+  "status": "completed",
   "shortlink": "abc123",
+  "error": null,
   "url": "/d/abc123"
 }
 ```
+
+### POST /render/terminal
+
+Render a diagram and stream catimg output for terminal display.
+
+**Request:**
+```json
+{
+  "source": "graph TD; A-->B;",
+  "format": "mermaid"
+}
+```
+
+**Response:** Streamed catimg ANSI escape sequences for terminal display.
 
 ### GET /d/:shortlink
 
@@ -73,26 +118,46 @@ Health check endpoint.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AUTH_USER` | Basic auth username | (required) |
-| `AUTH_PASS` | Basic auth password | (required) |
 | `PORT` | Server port | 3000 |
 | `LOG_LEVEL` | Log level (debug/info/warn/error) | info |
+| `AUTH_ENABLED` | Enable basic auth | false |
+| `AUTH_USER` | Basic auth username | (required if auth enabled) |
+| `AUTH_PASS` | Basic auth password | (required if auth enabled) |
 | `CACHE_TTL` | Cache TTL in ms | 300000 |
 | `CACHE_GC_INTERVAL` | Cache GC interval in ms | 60000 |
 | `QUEUE_MAX_CONCURRENT` | Max concurrent renders | 10 |
 | `QUEUE_MAX_WAITING` | Max queued renders | 50 |
+| `BROWSER_POOL_SIZE` | Puppeteer browser pool size | 10 |
+| `JOB_DB_PATH` | SQLite database path | ./data/jobs.db |
+| `JOB_RETENTION_MS` | Job record retention | 3600000 |
+| `BASE_URL` | Base URL for generated links | (empty) |
+| `CATIMG_PATH` | Path to catimg binary | catimg |
 
 ## Docker
 
-```bash
-# Build
-docker build -t diashort .
+### Using GHCR
 
-# Run
+```bash
+docker pull ghcr.io/lagz0ne/diashort:main
+
+docker run -p 3000:3000 ghcr.io/lagz0ne/diashort:main
+```
+
+### With auth enabled
+
+```bash
 docker run -p 3000:3000 \
+  -e AUTH_ENABLED=true \
   -e AUTH_USER=admin \
   -e AUTH_PASS=secret \
-  diashort
+  ghcr.io/lagz0ne/diashort:main
+```
+
+### Building locally
+
+```bash
+docker build -t diashort .
+docker run -p 3000:3000 diashort
 ```
 
 ## License
