@@ -16,14 +16,18 @@ export interface TerminalRenderer extends Lite.ServiceMethods {
 
 const readStream = async (stream: ReadableStream): Promise<string> => {
   const reader = stream.getReader();
-  let result = "";
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    result += decoder.decode(value);
+  try {
+    let result = "";
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      result += decoder.decode(value);
+    }
+    return result;
+  } finally {
+    reader.releaseLock();
   }
-  return result;
 };
 
 export const terminalRendererAtom = atom({
@@ -62,18 +66,21 @@ export const terminalRendererAtom = atom({
           throw new CatimgError(`Failed to spawn catimg: ${e.message}`);
         }
 
-        const exitCode = await proc.exited;
+        // Read both streams concurrently before checking exit
+        const [stdout, stderr, exitCode] = await Promise.all([
+          readStream(proc.stdout),
+          readStream(proc.stderr),
+          proc.exited,
+        ]);
 
         if (exitCode !== 0) {
-          const stderr = await readStream(proc.stderr);
           logger.error({ exitCode, stderr }, "catimg failed");
           throw new CatimgError(`catimg failed with exit code ${exitCode}: ${stderr}`);
         }
 
-        const output = await readStream(proc.stdout);
-        logger.debug({ outputLength: output.length }, "catimg finished");
+        logger.debug({ outputLength: stdout.length }, "catimg finished");
 
-        return output;
+        return stdout;
       } finally {
         // Cleanup temp file
         try {
