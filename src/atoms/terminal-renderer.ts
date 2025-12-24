@@ -50,6 +50,8 @@ export const terminalRendererAtom = atom({
         // Build catimg command - always specify width since catimg can't detect
         // terminal dimensions when running in a server/container environment
         const cmd: string[] = [catimgPath];
+        // Use high resolution Unicode mode for better quality
+        cmd.push("-r", "2");
         const width = options?.width ?? 80;
         cmd.push("-w", String(width));
         cmd.push(inputPath);

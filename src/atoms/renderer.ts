@@ -25,12 +25,17 @@ const readStream = async (stream: ReadableStream): Promise<string> => {
   return result;
 };
 
+export interface RenderOptions {
+  scale?: number;
+}
+
 export interface RendererService extends Lite.ServiceMethods {
   render: (
     ctx: Lite.ExecutionContext,
     source: string,
     format: "mermaid" | "d2",
-    outputType: "svg" | "png"
+    outputType: "svg" | "png",
+    options?: RenderOptions
   ) => Promise<Uint8Array>;
 }
 
@@ -45,12 +50,13 @@ export const rendererService = service({
       _ctx: Lite.ExecutionContext,
       source: string,
       format: "mermaid" | "d2",
-      outputType: "svg" | "png"
+      outputType: "svg" | "png",
+      options?: RenderOptions
     ): Promise<Uint8Array> => {
       // Use browser pool for mermaid
       if (format === "mermaid") {
         try {
-          return await mermaidRenderer.render(source, outputType);
+          return await mermaidRenderer.render(source, outputType, { scale: options?.scale });
         } catch (error) {
           if (error instanceof MermaidRenderError) {
             throw new RenderError(error.message);

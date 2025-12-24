@@ -349,7 +349,13 @@ Render a diagram and stream catimg output for terminal display.
 Request:
   curl -X POST ${url.origin}/render/terminal \\${curlAuth}
     -H "Content-Type: application/json" \\
-    -d '{"source": "graph TD; A-->B;", "format": "mermaid"}'
+    -d '{"source": "graph TD; A-->B;", "format": "mermaid", "width": 120, "scale": 2}'
+
+Parameters:
+  - source: Diagram source code (required)
+  - format: "mermaid" or "d2" (required)
+  - width: Terminal width in columns (default: 80)
+  - scale: PNG render scale 1-4 for quality (default: 2)
 
 Response: Streamed ANSI escape sequences for terminal display.
 

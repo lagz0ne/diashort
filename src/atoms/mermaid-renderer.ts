@@ -9,8 +9,12 @@ export class MermaidRenderError extends Error {
   }
 }
 
+export interface MermaidRenderOptions {
+  scale?: number;
+}
+
 export interface MermaidRenderer {
-  render(source: string, outputType: "svg" | "png"): Promise<Uint8Array>;
+  render(source: string, outputType: "svg" | "png", options?: MermaidRenderOptions): Promise<Uint8Array>;
 }
 
 export const mermaidRendererAtom = atom({
@@ -20,17 +24,27 @@ export const mermaidRendererAtom = atom({
   },
   factory: (_ctx, { pool, logger }): MermaidRenderer => {
     return {
-      render: async (source: string, outputType: "svg" | "png"): Promise<Uint8Array> => {
+      render: async (source: string, outputType: "svg" | "png", options?: MermaidRenderOptions): Promise<Uint8Array> => {
         const browser = await pool.acquire();
 
         try {
-          logger.debug({ outputType }, "Rendering mermaid diagram");
+          const scale = options?.scale ?? 1;
+          logger.debug({ outputType, scale }, "Rendering mermaid diagram");
 
           const { renderMermaid } = await import("@mermaid-js/mermaid-cli");
 
-          const result = await renderMermaid(browser, source, outputType, {
+          const renderOptions: Record<string, unknown> = {
             backgroundColor: "transparent",
-          });
+          };
+
+          // For PNG, use deviceScaleFactor to increase resolution
+          if (outputType === "png" && scale > 1) {
+            renderOptions.viewport = {
+              deviceScaleFactor: scale,
+            };
+          }
+
+          const result = await renderMermaid(browser, source, outputType, renderOptions);
 
           logger.debug("Mermaid render complete");
 

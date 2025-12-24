@@ -11,6 +11,7 @@ export interface TerminalRenderInput {
   source: string;
   format: DiagramFormat;
   width?: number;
+  scale?: number;
 }
 
 export interface TerminalRenderResult {
@@ -41,10 +42,19 @@ function parseTerminalRenderInput(body: unknown): TerminalRenderInput {
     width = obj.width;
   }
 
+  let scale: number | undefined;
+  if (obj.scale !== undefined) {
+    if (typeof obj.scale !== "number" || obj.scale < 1 || obj.scale > 4) {
+      throw new ValidationError("scale must be a number between 1 and 4");
+    }
+    scale = obj.scale;
+  }
+
   return {
     source: obj.source,
     format,
     width,
+    scale,
   };
 }
 
@@ -60,16 +70,19 @@ export const renderTerminalFlow = flow({
   factory: async (ctx, { queue, renderer, terminalRenderer, logger }): Promise<TerminalRenderResult> => {
     const { input } = ctx;
 
-    logger.debug({ format: input.format, width: input.width }, "Starting terminal render");
+    // Default scale to 2 for better terminal quality
+    const scale = input.scale ?? 2;
+
+    logger.debug({ format: input.format, width: input.width, scale }, "Starting terminal render");
 
     // Acquire queue slot for backpressure
     const release = await queue.acquire();
     ctx.onClose(() => release());
 
-    // Render to PNG first
+    // Render to PNG first with scale for higher resolution
     const pngBytes = await ctx.exec({
       fn: renderer.render,
-      params: [input.source, input.format, "png"],
+      params: [input.source, input.format, "png", { scale }],
       name: "renderer.render",
     });
 
