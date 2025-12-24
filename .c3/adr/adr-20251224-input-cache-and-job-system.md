@@ -1,14 +1,14 @@
 ---
 id: adr-20251224-input-cache-and-job-system
 title: Input Caching and Non-Blocking Job System Implementation
-status: proposed
+status: accepted
 date: 2024-12-24
 ---
 
 # Input Caching and Non-Blocking Job System Implementation
 
 ## Status
-**Proposed** - 2024-12-24
+**Accepted** - 2024-12-24
 
 ## Problem/Requirement
 
