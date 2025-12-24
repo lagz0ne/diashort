@@ -15,6 +15,7 @@ describe("Integration Tests", () => {
     process.env.METRICS_PORT = "0";
     process.env.LOG_LEVEL = "error";
     process.env.NODE_ENV = "test";
+    process.env.JOB_DB_PATH = "/tmp/integration-test-jobs.db";
 
     const result = await startServer();
     server = result.server;
@@ -90,7 +91,7 @@ describe("Integration Tests", () => {
 
     it("mermaid render completes successfully with warmed pool", async () => {
       // Pool is warmed up in beforeAll, so browser launch is not needed
-      const response = await fetch(`${baseUrl}/render`, {
+      const response = await fetch(`${baseUrl}/render?mode=sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

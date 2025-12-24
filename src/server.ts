@@ -3,8 +3,11 @@ import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requ
 import { AuthError } from "./extensions/auth";
 import { renderFlow, ValidationError, BackpressureError, RenderError } from "./flows/render";
 import { retrieveFlow, NotFoundError } from "./flows/retrieve";
+import { asyncRenderFlow } from "./flows/render-async";
+import { jobStatusFlow, JobNotFoundError } from "./flows/job-status";
 import { loggerAtom } from "./atoms/logger";
 import { browserPoolAtom } from "./atoms/browser-pool";
+import { jobProcessorAtom } from "./atoms/job-processor";
 
 const serverConfigAtom = atom({
   deps: {
@@ -87,6 +90,13 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
+  if (error instanceof JobNotFoundError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   if (error instanceof BackpressureError) {
     return new Response(JSON.stringify({ error: "Service temporarily unavailable" }), {
       status: 429,
@@ -125,6 +135,10 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
   await browserPool.warmUp();
   logger.info("Browser pool ready");
 
+  // Start job processor
+  const jobProcessor = await scope.resolve(jobProcessorAtom);
+  logger.info("Job processor started");
+
   logger.info({ port }, "Starting server");
 
   const server = Bun.serve({
@@ -141,17 +155,45 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
           }
 
           const body = await req.json();
+          const mode = url.searchParams.get("mode");
 
           const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
-          
+
           try {
+            // Sync mode: use renderFlow for blocking render
+            if (mode === "sync") {
+              const result = await ctx.exec({
+                flow: renderFlow,
+                rawInput: body,
+              });
+
+              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}` }), {
+                status: 200,
+                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+              });
+            }
+
+            // Async mode (default): use asyncRenderFlow
             const result = await ctx.exec({
-              flow: renderFlow,
+              flow: asyncRenderFlow,
               rawInput: body,
             });
-            
-            return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}` }), {
-              status: 200,
+
+            // Cache hit - return 200 with shortlink
+            if (result.mode === "sync") {
+              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `/d/${result.shortlink}` }), {
+                status: 200,
+                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+              });
+            }
+
+            // Job created - return 202 with job info
+            return new Response(JSON.stringify({
+              jobId: result.jobId,
+              status: result.status,
+              statusUrl: result.statusUrl,
+            }), {
+              status: 202,
               headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
             });
           } finally {
@@ -163,19 +205,42 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
           const shortlink = url.pathname.slice(3);
 
           const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
-          
+
           try {
             const result = await ctx.exec({
               flow: retrieveFlow,
               input: { shortlink },
             });
-            
+
             return new Response(result.data, {
               status: 200,
-              headers: { 
-                "Content-Type": result.contentType, 
+              headers: {
+                "Content-Type": result.contentType,
                 "X-Request-Id": requestId,
                 "Cache-Control": "public, max-age=300",
+              },
+            });
+          } finally {
+            await ctx.close();
+          }
+        }
+
+        if (req.method === "GET" && url.pathname.startsWith("/jobs/")) {
+          const jobId = url.pathname.slice(6);
+
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
+
+          try {
+            const result = await ctx.exec({
+              flow: jobStatusFlow,
+              input: { jobId },
+            });
+
+            return new Response(JSON.stringify(result), {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Request-Id": requestId,
               },
             });
           } finally {
