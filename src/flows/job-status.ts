@@ -1,6 +1,7 @@
 import { flow } from "@pumped-fn/lite";
 import { jobStoreAtom } from "../atoms/job-store";
 import { loggerAtom } from "../atoms/logger";
+import { baseUrlTag } from "../config/tags";
 
 export class JobNotFoundError extends Error {
   public readonly statusCode = 404;
@@ -42,6 +43,7 @@ export const jobStatusFlow = flow({
   parse: parseJobStatusInput,
   factory: async (ctx, { jobStore, logger }): Promise<JobStatusResult> => {
     const { input } = ctx;
+    const baseUrl = ctx.data.seekTag(baseUrlTag) ?? "";
 
     logger.debug({ jobId: input.jobId }, "Looking up job status");
 
@@ -56,7 +58,7 @@ export const jobStatusFlow = flow({
       status: job.status,
       shortlink: job.shortlink ?? null,
       error: job.error ?? null,
-      url: job.shortlink ? `/d/${job.shortlink}` : null,
+      url: job.shortlink ? `${baseUrl}/d/${job.shortlink}` : null,
     };
 
     return result;

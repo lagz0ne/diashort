@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { createScope } from "@pumped-fn/lite";
 import { jobStatusFlow, JobNotFoundError } from "../flows/job-status";
 import { jobStoreAtom } from "../atoms/job-store";
-import { jobConfigTag, logLevelTag } from "../config/tags";
+import { jobConfigTag, logLevelTag, baseUrlTag } from "../config/tags";
 import { unlinkSync, existsSync } from "fs";
 
 const TEST_DB_PATH = "/tmp/test-status.db";
@@ -63,5 +63,39 @@ describe("job-status-flow", () => {
     })).rejects.toThrow(JobNotFoundError);
 
     await ctx.close();
+  });
+
+  test("uses BASE_URL in result url when job is completed", async () => {
+    const scopeWithBaseUrl = createScope({
+      tags: [
+        jobConfigTag({
+          dbPath: TEST_DB_PATH,
+          pollIntervalMs: 100,
+          retentionMs: 3600000,
+          cleanupIntervalMs: 60000,
+        }),
+        logLevelTag("error"),
+        baseUrlTag("https://diagrams.example.com"),
+      ],
+    });
+
+    const jobStore = await scopeWithBaseUrl.resolve(jobStoreAtom);
+    const jobId = jobStore.create({
+      source: "graph TD; A-->B;",
+      format: "mermaid",
+      outputType: "svg",
+    });
+    // Simulate completion
+    jobStore.updateStatus(jobId, "completed", { shortlink: "abc12345" });
+
+    const ctx = scopeWithBaseUrl.createContext();
+    const result = await ctx.exec({
+      flow: jobStatusFlow,
+      rawInput: { jobId },
+    });
+    await ctx.close();
+    await scopeWithBaseUrl.dispose();
+
+    expect(result.url).toBe("https://diagrams.example.com/d/abc12345");
   });
 });
