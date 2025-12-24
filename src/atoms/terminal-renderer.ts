@@ -47,11 +47,11 @@ export const terminalRendererAtom = atom({
         await Bun.write(inputPath, pngBytes);
         logger.debug({ inputPath }, "Wrote PNG to temp file for catimg");
 
-        // Build catimg command
+        // Build catimg command - always specify width since catimg can't detect
+        // terminal dimensions when running in a server/container environment
         const cmd: string[] = [catimgPath];
-        if (options?.width) {
-          cmd.push("-w", String(options.width));
-        }
+        const width = options?.width ?? 80;
+        cmd.push("-w", String(width));
         cmd.push(inputPath);
 
         logger.debug({ cmd }, "Spawning catimg");
