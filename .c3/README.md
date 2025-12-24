@@ -26,6 +26,7 @@ flowchart TB
         MMDC["mmdc<br/>(Mermaid CLI)"]
         D2["d2<br/>(D2 CLI)"]
         Chromium["Chromium<br/>(Headless)"]
+        Catimg["catimg<br/>(Terminal Renderer)"]
     end
 
     subgraph Diashort["Diashort"]
@@ -39,6 +40,7 @@ flowchart TB
 
     API -->|spawn| MMDC
     API -->|spawn| D2
+    API -->|spawn| Catimg
     API -->|bun:sqlite| SQLite
     MMDC --> Chromium
 ```
@@ -67,8 +69,9 @@ flowchart TB
 | API Server (c3-1) | SQLite Database (c3-2) | bun:sqlite | Job persistence (create, status, cleanup) |
 | API Server (c3-1) | mmdc | Subprocess spawn | Render Mermaid diagrams |
 | API Server (c3-1) | d2 | Subprocess spawn | Render D2 diagrams |
+| API Server (c3-1) | catimg | Subprocess spawn | Convert PNG to terminal ANSI output |
 
-**Note:** API Server to SQLite Database is an internal container-to-container dependency via Bun's native bun:sqlite module (in-process, no network). External tool invocation (mmdc, d2) is via subprocess spawning.
+**Note:** API Server to SQLite Database is an internal container-to-container dependency via Bun's native bun:sqlite module (in-process, no network). External tool invocation (mmdc, d2, catimg) is via subprocess spawning.
 
 ## Cross-Cutting Concerns {#c3-0-cross-cutting}
 

@@ -41,6 +41,7 @@ title: Diashort Architecture - Table of Contents
 | [c3-110](c3-1-api-server/c3-110-job-store.md) | Job Store | Job persistence client (uses c3-2) |
 | [c3-111](c3-1-api-server/c3-111-job-processor.md) | Job Processor | Background job processor |
 | [c3-113](c3-1-api-server/c3-113-browser-pool.md) | Browser Pool | Puppeteer instance pool for mermaid |
+| [c3-115](c3-1-api-server/c3-115-terminal-renderer.md) | Terminal Renderer | PNG to terminal via catimg |
 
 ### c3-2 - SQLite Database
 
