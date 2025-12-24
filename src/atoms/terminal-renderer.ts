@@ -10,12 +10,8 @@ export interface TerminalRendererOptions {
   width?: number;
 }
 
-export interface TerminalRendererResult {
-  output: string;
-}
-
 export interface TerminalRenderer extends Lite.ServiceMethods {
-  render: (pngBytes: Uint8Array, options?: TerminalRendererOptions) => Promise<TerminalRendererResult>;
+  render: (pngBytes: Uint8Array, options?: TerminalRendererOptions) => Promise<string>;
 }
 
 const readStream = async (stream: ReadableStream): Promise<string> => {
@@ -37,7 +33,7 @@ export const terminalRendererAtom = atom({
     catimgPath: tags.required(catimgPathTag),
   },
   factory: (_ctx, { logger, spawn, catimgPath }): TerminalRenderer => ({
-    render: async (pngBytes: Uint8Array, options?: TerminalRendererOptions): Promise<TerminalRendererResult> => {
+    render: async (pngBytes: Uint8Array, options?: TerminalRendererOptions): Promise<string> => {
       const id = randomUUID();
       const tempDir = tmpdir();
       const inputPath = join(tempDir, `diashort-catimg-${id}.png`);
@@ -77,7 +73,7 @@ export const terminalRendererAtom = atom({
         const output = await readStream(proc.stdout);
         logger.debug({ outputLength: output.length }, "catimg finished");
 
-        return { output };
+        return output;
       } finally {
         // Cleanup temp file
         try {

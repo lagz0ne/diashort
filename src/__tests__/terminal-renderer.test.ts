@@ -1,6 +1,6 @@
 import { describe, it, expect, mock } from "bun:test";
 import { createScope, preset } from "@pumped-fn/lite";
-import { terminalRendererAtom, type TerminalRendererResult } from "../atoms/terminal-renderer";
+import { terminalRendererAtom } from "../atoms/terminal-renderer";
 import { mockLoggerAtom } from "./helpers/mocks";
 import { loggerAtom } from "../atoms/logger";
 import { logLevelTag, nodeEnvTag, spawnFnTag, catimgPathTag, type SpawnFn } from "../config/tags";
@@ -50,7 +50,7 @@ describe("Terminal Renderer", () => {
 
     expect(capturedCmd[0]).toBe("catimg");
     expect(capturedInputPath).toContain(".png");
-    expect(result.output).toBe(mockOutput);
+    expect(result).toBe(mockOutput);
 
     await scope.dispose();
   });
