@@ -30,4 +30,18 @@ describe("hashInput", () => {
     const hash = hashInput("test", "mermaid", "svg");
     expect(hash).toMatch(/^[a-f0-9]+$/);
   });
+
+  test("produces same hash regardless of whitespace", () => {
+    const hash1 = hashInput("graph TD; A-->B;", "mermaid", "svg");
+    const hash2 = hashInput("  graph TD;   A-->B;  ", "mermaid", "svg");
+    const hash3 = hashInput("graph\nTD;\tA-->B;", "mermaid", "svg");
+    expect(hash1).toBe(hash2);
+    expect(hash1).toBe(hash3);
+  });
+
+  test("produces same hash for different line endings", () => {
+    const hash1 = hashInput("graph TD\nA-->B", "mermaid", "svg");
+    const hash2 = hashInput("graph TD\r\nA-->B", "mermaid", "svg");
+    expect(hash1).toBe(hash2);
+  });
 });
