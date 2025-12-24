@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { existsSync, unlinkSync } from "fs";
 import { startServer } from "../server";
 import type { Lite } from "@pumped-fn/lite";
 
@@ -26,6 +27,11 @@ describe("Integration Tests", () => {
   afterAll(async () => {
     server.stop();
     await scope.dispose();
+    // Clean up test database
+    const dbPath = process.env.JOB_DB_PATH;
+    if (dbPath && existsSync(dbPath)) {
+      unlinkSync(dbPath);
+    }
   });
 
   const authHeader = `Basic ${btoa("test:secret")}`;
@@ -182,7 +188,7 @@ describe("Integration Tests", () => {
       expect(body.url).toBe(`/d/${body.shortlink}`);
     });
 
-    it("GET /jobs/:id returns job status", async () => {
+    it("GET /jobs/:id returns job status and completes", async () => {
       // Create a job first
       const createResponse = await fetch(`${baseUrl}/render`, {
         method: "POST",
@@ -191,21 +197,35 @@ describe("Integration Tests", () => {
           "Authorization": authHeader,
         },
         body: JSON.stringify({
-          source: "graph TD; X-->Y;",
+          source: `graph TD; Status${Date.now()}-->Test;`,
           format: "mermaid",
           outputType: "svg",
         }),
       });
-      const { jobId } = await createResponse.json();
 
-      // Get status
-      const statusResponse = await fetch(`${baseUrl}/jobs/${jobId}`);
-      expect(statusResponse.status).toBe(200);
+      const createBody = await createResponse.json();
+      const jobId = createBody.jobId;
 
-      const status = await statusResponse.json();
-      expect(status.jobId).toBe(jobId);
-      expect(["pending", "rendering", "completed", "failed"]).toContain(status.status);
-    });
+      // Poll for completion
+      const startTime = Date.now();
+      let finalStatus;
+      while (Date.now() - startTime < 15000) {
+        const statusResponse = await fetch(`${baseUrl}/jobs/${jobId}`, {
+          headers: { "Authorization": authHeader },
+        });
+        const status = await statusResponse.json();
+        if (status.status === "completed" || status.status === "failed") {
+          finalStatus = status;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      expect(finalStatus).toBeDefined();
+      expect(finalStatus.jobId).toBe(jobId);
+      expect(finalStatus.status).toBe("completed");
+      expect(finalStatus.shortlink).toBeDefined();
+    }, 20000);
 
     it("GET /jobs/:id returns 404 for non-existent job", async () => {
       const response = await fetch(`${baseUrl}/jobs/job_notexist`);
