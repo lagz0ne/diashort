@@ -21,7 +21,10 @@ From Container (c3-1): "Orchestrate diagram rendering: sync mode (direct) or asy
 
 ```mermaid
 flowchart TD
-    Input([Raw Input + Mode]) --> Parse[Parse & Validate Input]
+    Input([Raw Input + Mode]) --> Hash[Generate Input Hash]
+    Hash --> CacheCheck[Cache.getByInputHash]
+    CacheCheck -->|Hit| CachedResult([Return shortlink with cached=true])
+    CacheCheck -->|Miss| Parse[Parse & Validate Input]
     Parse -->|Invalid| ValidationError[Throw ValidationError]
     Parse -->|Valid| ModeCheck{mode param?}
 
@@ -35,7 +38,8 @@ flowchart TD
         Render -->|Success| Encode[Base64 Encode Bytes]
         Render -->|Failure| RenderError[Throw RenderError]
         Encode --> Store[Cache.store]
-        Store --> SyncResult([Return shortlink])
+        Store --> StoreHash[Cache.storeInputHash]
+        StoreHash --> SyncResult([Return shortlink with cached=false])
     end
 
     subgraph AsyncPath["Async Path (Non-Blocking)"]
@@ -62,6 +66,7 @@ flowchart TD
 
 | Decision | Condition | Outcome |
 |----------|-----------|---------|
+| Input cache check | Input hash exists in cache | Return cached result immediately, skip rendering |
 | Input validation | source empty, format invalid, outputType invalid | Reject with ValidationError |
 | Mode selection | ?mode=sync query param | Sync path (blocking) vs async path (job creation) |
 | Queue acquisition | Slots available vs queue full vs waiting allowed | Proceed, wait, or reject (sync only) |
@@ -71,6 +76,7 @@ flowchart TD
 
 | Scenario | Behavior | Rationale |
 |----------|----------|-----------|
+| Input cache hit | Return immediately with cached=true | Avoids redundant rendering |
 | Empty source string | Reject with ValidationError | Nothing to render |
 | Unknown format | Reject with ValidationError | Only mermaid/d2 supported |
 | outputType defaults | Use svg if not specified | Most common use case |
@@ -106,7 +112,8 @@ flowchart TD
 // HTTP 200 OK
 {
   "shortlink": "abc12345",
-  "url": "/d/abc12345"
+  "url": "/d/abc12345",
+  "cached": false  // true if returned from input cache
 }
 ```
 
