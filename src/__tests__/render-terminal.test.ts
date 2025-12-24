@@ -113,4 +113,32 @@ describe("render-terminal-flow", () => {
     await ctx.close();
     await scope.dispose();
   });
+
+  it("throws BackpressureError when queue is full", async () => {
+    const scope = createScope({
+      tags: [
+        logLevelTag("error"),
+        nodeEnvTag("test"),
+        queueConfigTag({ maxConcurrent: 0, maxWaiting: 0 }),
+      ],
+      presets: [
+        preset(loggerAtom, mockLoggerAtom),
+      ],
+    });
+
+    const ctx = scope.createContext();
+
+    await expect(
+      ctx.exec({
+        flow: renderTerminalFlow,
+        rawInput: {
+          source: "graph TD; A-->B;",
+          format: "mermaid",
+        },
+      })
+    ).rejects.toThrow("Queue is full");
+
+    await ctx.close();
+    await scope.dispose();
+  });
 });
