@@ -17,6 +17,13 @@ export interface QueueConfig {
   maxWaiting: number;
 }
 
+export interface JobConfig {
+  dbPath: string;
+  pollIntervalMs: number;
+  retentionMs: number;
+  cleanupIntervalMs: number;
+}
+
 export const logLevelTag = tag<LogLevel>({
   label: "log-level",
   default: "info",
@@ -50,6 +57,16 @@ export const cacheConfigTag = tag<CacheConfig>({
 export const queueConfigTag = tag<QueueConfig>({
   label: "queue-config",
   default: { maxConcurrent: 10, maxWaiting: 50 },
+});
+
+export const jobConfigTag = tag<JobConfig>({
+  label: "job-config",
+  default: {
+    dbPath: "./data/jobs.db",
+    pollIntervalMs: 100,
+    retentionMs: 3600000,
+    cleanupIntervalMs: 60000,
+  },
 });
 
 export const browserPoolSizeTag = tag<number>({
@@ -150,6 +167,11 @@ export function loadConfigTags(
 
   const browserPoolSize = parseNumber(env, "BROWSER_POOL_SIZE", queueMaxConcurrent);
 
+  const jobDbPath = getEnv(env, "JOB_DB_PATH") ?? "./data/jobs.db";
+  const jobPollInterval = parseNumber(env, "JOB_POLL_INTERVAL_MS", 100);
+  const jobRetention = parseNumber(env, "JOB_RETENTION_MS", 3600000);
+  const jobCleanupInterval = parseNumber(env, "JOB_CLEANUP_INTERVAL_MS", 60000);
+
   return [
     logLevelTag(logLevel),
     nodeEnvTag(nodeEnv),
@@ -159,5 +181,11 @@ export function loadConfigTags(
     cacheConfigTag({ ttlMs: cacheTtl, gcIntervalMs: cacheGcInterval }),
     queueConfigTag({ maxConcurrent: queueMaxConcurrent, maxWaiting: queueMaxWaiting }),
     browserPoolSizeTag(browserPoolSize),
+    jobConfigTag({
+      dbPath: jobDbPath,
+      pollIntervalMs: jobPollInterval,
+      retentionMs: jobRetention,
+      cleanupIntervalMs: jobCleanupInterval,
+    }),
   ];
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, test } from "bun:test";
 import { createScope, type Lite } from "@pumped-fn/lite";
 import {
   loadConfigTags,
@@ -10,6 +10,7 @@ import {
   cacheConfigTag,
   queueConfigTag,
   browserPoolSizeTag,
+  jobConfigTag,
 } from "../config/tags";
 
 describe("Config Tags", () => {
@@ -140,6 +141,33 @@ describe("Config Tags", () => {
 
       const tagged = loadConfigTags(env);
       expect(browserPoolSizeTag.find(tagged)).toBe(8);
+    });
+  });
+
+  describe("job config", () => {
+    test("uses defaults when env vars not set", () => {
+      const tagged = loadConfigTags({});
+      expect(jobConfigTag.find(tagged)).toEqual({
+        dbPath: "./data/jobs.db",
+        pollIntervalMs: 100,
+        retentionMs: 3600000,
+        cleanupIntervalMs: 60000,
+      });
+    });
+
+    test("parses job config from env vars", () => {
+      const tagged = loadConfigTags({
+        JOB_DB_PATH: "/tmp/test.db",
+        JOB_POLL_INTERVAL_MS: "200",
+        JOB_RETENTION_MS: "7200000",
+        JOB_CLEANUP_INTERVAL_MS: "120000",
+      });
+      expect(jobConfigTag.find(tagged)).toEqual({
+        dbPath: "/tmp/test.db",
+        pollIntervalMs: 200,
+        retentionMs: 7200000,
+        cleanupIntervalMs: 120000,
+      });
     });
   });
 
