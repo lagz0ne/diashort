@@ -129,9 +129,10 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
   const logger = await scope.resolve(loggerAtom);
   const authConfig = await scope.resolve(authConfigAtom);
 
-  // Extract baseUrl from configTags
-  const baseUrlValue = configTags.find((t) => t.key === baseUrlTag.key);
-  const baseUrl = baseUrlValue ? baseUrlValue.value : "";
+  // Extract baseUrl using seekTag for consistency with flows
+  const tempCtx = scope.createContext();
+  const baseUrl = tempCtx.data.seekTag(baseUrlTag) ?? "";
+  await tempCtx.close();
 
   // Warm up browser pool for fast first requests
   const browserPool = await scope.resolve(browserPoolAtom);
