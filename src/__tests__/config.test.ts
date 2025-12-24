@@ -11,6 +11,7 @@ import {
   queueConfigTag,
   browserPoolSizeTag,
   baseUrlTag,
+  catimgPathTag,
   jobConfigTag,
 } from "../config/tags";
 
@@ -158,6 +159,22 @@ describe("Config Tags", () => {
 
       const tagged = loadConfigTags(env);
       expect(baseUrlTag.find(tagged)).toBe("");
+    });
+
+    it("parses CATIMG_PATH from env", () => {
+      const env = {
+        CATIMG_PATH: "/usr/local/bin/catimg",
+      };
+
+      const tagged = loadConfigTags(env);
+      expect(catimgPathTag.find(tagged)).toBe("/usr/local/bin/catimg");
+    });
+
+    it("defaults CATIMG_PATH to 'catimg'", () => {
+      const env = {};
+
+      const tagged = loadConfigTags(env);
+      expect(catimgPathTag.find(tagged)).toBe("catimg");
     });
   });
 

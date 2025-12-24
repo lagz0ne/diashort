@@ -79,6 +79,11 @@ export const baseUrlTag = tag<string>({
   default: "",
 });
 
+export const catimgPathTag = tag<string>({
+  label: "catimg-path",
+  default: "catimg",
+});
+
 export type SpawnFn = typeof Bun.spawn;
 
 export const spawnFnTag = tag({
@@ -179,6 +184,8 @@ export function loadConfigTags(
 
   const baseUrl = getEnv(env, "BASE_URL") ?? "";
 
+  const catimgPath = getEnv(env, "CATIMG_PATH") ?? "catimg";
+
   return [
     logLevelTag(logLevel),
     nodeEnvTag(nodeEnv),
@@ -189,6 +196,7 @@ export function loadConfigTags(
     queueConfigTag({ maxConcurrent: queueMaxConcurrent, maxWaiting: queueMaxWaiting }),
     browserPoolSizeTag(browserPoolSize),
     baseUrlTag(baseUrl),
+    catimgPathTag(catimgPath),
     jobConfigTag({
       dbPath: jobDbPath,
       pollIntervalMs: jobPollInterval,
