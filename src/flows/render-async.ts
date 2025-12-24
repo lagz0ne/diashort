@@ -4,6 +4,7 @@ import { jobStoreAtom } from "../atoms/job-store";
 import { loggerAtom } from "../atoms/logger";
 import { hashInput } from "../utils/hash";
 import { ValidationError, type SyncRenderResult } from "./render";
+import { baseUrlTag } from "../config/tags";
 
 export interface AsyncRenderInput {
   source: string;
@@ -58,6 +59,7 @@ export const asyncRenderFlow = flow({
   parse: parseAsyncRenderInput,
   factory: async (ctx, { cache, jobStore, logger }): Promise<RenderResult> => {
     const { input } = ctx;
+    const baseUrl = ctx.data.seekTag(baseUrlTag) ?? "";
 
     // Check input cache first
     const inputHash = hashInput(input.source, input.format, input.outputType);
@@ -84,7 +86,7 @@ export const asyncRenderFlow = flow({
       mode: "async",
       jobId,
       status: "pending",
-      statusUrl: `/jobs/${jobId}`,
+      statusUrl: `${baseUrl}/jobs/${jobId}`,
     };
   },
 });

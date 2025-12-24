@@ -3,7 +3,7 @@ import { createScope } from "@pumped-fn/lite";
 import { asyncRenderFlow } from "../flows/render-async";
 import { jobStoreAtom } from "../atoms/job-store";
 import { cacheAtom } from "../atoms/cache";
-import { jobConfigTag, cacheConfigTag, logLevelTag } from "../config/tags";
+import { jobConfigTag, cacheConfigTag, logLevelTag, baseUrlTag } from "../config/tags";
 import { hashInput } from "../utils/hash";
 import { unlinkSync, existsSync } from "fs";
 
@@ -76,6 +76,40 @@ describe("async-render-flow", () => {
     if (result.mode === "sync") {
       expect(result.shortlink).toBe(shortlink);
       expect(result.cached).toBe(true);
+    }
+  });
+
+  test("uses BASE_URL in statusUrl when configured", async () => {
+    // Create new scope with baseUrlTag
+    const scopeWithBaseUrl = createScope({
+      tags: [
+        jobConfigTag({
+          dbPath: TEST_DB_PATH,
+          pollIntervalMs: 100,
+          retentionMs: 3600000,
+          cleanupIntervalMs: 60000,
+        }),
+        cacheConfigTag({ ttlMs: 300000, gcIntervalMs: 60000 }),
+        logLevelTag("error"),
+        baseUrlTag("https://diagrams.example.com"),
+      ],
+    });
+
+    const ctx = scopeWithBaseUrl.createContext();
+    const result = await ctx.exec({
+      flow: asyncRenderFlow,
+      rawInput: {
+        source: "graph TD; X-->Y;",
+        format: "mermaid",
+        outputType: "svg",
+      },
+    });
+    await ctx.close();
+    await scopeWithBaseUrl.dispose();
+
+    expect(result.mode).toBe("async");
+    if (result.mode === "async") {
+      expect(result.statusUrl).toBe(`https://diagrams.example.com/jobs/${result.jobId}`);
     }
   });
 });
