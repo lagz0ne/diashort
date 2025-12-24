@@ -10,6 +10,7 @@ import {
   cacheConfigTag,
   queueConfigTag,
   browserPoolSizeTag,
+  baseUrlTag,
   jobConfigTag,
 } from "../config/tags";
 
@@ -141,6 +142,22 @@ describe("Config Tags", () => {
 
       const tagged = loadConfigTags(env);
       expect(browserPoolSizeTag.find(tagged)).toBe(8);
+    });
+
+    it("parses BASE_URL from env", () => {
+      const env = {
+        BASE_URL: "https://diagrams.example.com",
+      };
+
+      const tagged = loadConfigTags(env);
+      expect(baseUrlTag.find(tagged)).toBe("https://diagrams.example.com");
+    });
+
+    it("defaults BASE_URL to empty string", () => {
+      const env = {};
+
+      const tagged = loadConfigTags(env);
+      expect(baseUrlTag.find(tagged)).toBe("");
     });
   });
 

@@ -74,6 +74,11 @@ export const browserPoolSizeTag = tag<number>({
   default: 10,
 });
 
+export const baseUrlTag = tag<string>({
+  label: "base-url",
+  default: "",
+});
+
 export type SpawnFn = typeof Bun.spawn;
 
 export const spawnFnTag = tag({
@@ -172,6 +177,8 @@ export function loadConfigTags(
   const jobRetention = parseNumber(env, "JOB_RETENTION_MS", 3600000);
   const jobCleanupInterval = parseNumber(env, "JOB_CLEANUP_INTERVAL_MS", 60000);
 
+  const baseUrl = getEnv(env, "BASE_URL") ?? "";
+
   return [
     logLevelTag(logLevel),
     nodeEnvTag(nodeEnv),
@@ -181,6 +188,7 @@ export function loadConfigTags(
     cacheConfigTag({ ttlMs: cacheTtl, gcIntervalMs: cacheGcInterval }),
     queueConfigTag({ maxConcurrent: queueMaxConcurrent, maxWaiting: queueMaxWaiting }),
     browserPoolSizeTag(browserPoolSize),
+    baseUrlTag(baseUrl),
     jobConfigTag({
       dbPath: jobDbPath,
       pollIntervalMs: jobPollInterval,
