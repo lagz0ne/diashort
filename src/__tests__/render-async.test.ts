@@ -46,9 +46,11 @@ describe("async-render-flow", () => {
     await ctx.close();
 
     expect(result.mode).toBe("async");
-    expect(result.jobId).toMatch(/^job_[a-f0-9]{8}$/);
-    expect(result.status).toBe("pending");
-    expect(result.statusUrl).toBe(`/jobs/${result.jobId}`);
+    if (result.mode === "async") {
+      expect(result.jobId).toMatch(/^job_[a-f0-9]{8}$/);
+      expect(result.status).toBe("pending");
+      expect(result.statusUrl).toBe(`/jobs/${result.jobId}`);
+    }
   });
 
   test("returns cached shortlink if input exists", async () => {
@@ -71,7 +73,9 @@ describe("async-render-flow", () => {
     await ctx.close();
 
     expect(result.mode).toBe("sync");
-    expect((result as any).shortlink).toBe(shortlink);
-    expect((result as any).cached).toBe(true);
+    if (result.mode === "sync") {
+      expect(result.shortlink).toBe(shortlink);
+      expect(result.cached).toBe(true);
+    }
   });
 });

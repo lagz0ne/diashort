@@ -22,13 +22,25 @@ export interface JobStatusResult {
   url: string | null;
 }
 
+function parseJobStatusInput(raw: unknown): JobStatusInput {
+  if (!raw || typeof raw !== "object") {
+    throw new JobNotFoundError("invalid");
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.jobId !== "string") {
+    throw new JobNotFoundError("invalid");
+  }
+  return { jobId: obj.jobId };
+}
+
 export const jobStatusFlow = flow({
   name: "job-status",
   deps: {
     jobStore: jobStoreAtom,
     logger: loggerAtom,
   },
-  factory: async (ctx, { jobStore, logger }) => {
+  parse: parseJobStatusInput,
+  factory: async (ctx, { jobStore, logger }): Promise<JobStatusResult> => {
     const { input } = ctx;
 
     logger.debug({ jobId: input.jobId }, "Looking up job status");

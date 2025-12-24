@@ -3,6 +3,26 @@ import { existsSync, unlinkSync } from "fs";
 import { startServer } from "../server";
 import type { Lite } from "@pumped-fn/lite";
 
+// Response type helpers for type safety
+interface AsyncJobResponse {
+  jobId: string;
+  status: string;
+  statusUrl: string;
+}
+
+interface SyncRenderResponse {
+  shortlink: string;
+  url: string;
+  cached?: boolean;
+}
+
+interface JobStatusResponse {
+  jobId: string;
+  status: string;
+  shortlink?: string;
+  error?: string;
+}
+
 describe("Integration Tests", () => {
   let server: ReturnType<typeof Bun.serve>;
   let scope: Lite.Scope;
@@ -40,7 +60,7 @@ describe("Integration Tests", () => {
     it("GET /health returns 200", async () => {
       const res = await fetch(`${baseUrl}/health`);
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as { status: string };
       expect(body).toEqual({ status: "ok" });
     });
   });
@@ -155,14 +175,15 @@ describe("Integration Tests", () => {
 
       // Can be 202 (new job) or 200 (cache hit from previous run)
       expect([200, 202]).toContain(response.status);
-      const body = await response.json();
 
       if (response.status === 202) {
+        const body = await response.json() as AsyncJobResponse;
         expect(body.jobId).toMatch(/^job_[a-f0-9]{8}$/);
         expect(body.status).toBe("pending");
         expect(body.statusUrl).toBe(`/jobs/${body.jobId}`);
       } else {
         // Cache hit returns shortlink
+        const body = await response.json() as SyncRenderResponse;
         expect(body.shortlink).toBeDefined();
         expect(body.url).toMatch(/^\/d\//);
       }
@@ -183,7 +204,7 @@ describe("Integration Tests", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json();
+      const body = await response.json() as SyncRenderResponse;
       expect(body.shortlink).toBeDefined();
       expect(body.url).toBe(`/d/${body.shortlink}`);
     });
@@ -203,17 +224,17 @@ describe("Integration Tests", () => {
         }),
       });
 
-      const createBody = await createResponse.json();
+      const createBody = await createResponse.json() as AsyncJobResponse;
       const jobId = createBody.jobId;
 
       // Poll for completion
       const startTime = Date.now();
-      let finalStatus;
+      let finalStatus: JobStatusResponse | undefined;
       while (Date.now() - startTime < 15000) {
         const statusResponse = await fetch(`${baseUrl}/jobs/${jobId}`, {
           headers: { "Authorization": authHeader },
         });
-        const status = await statusResponse.json();
+        const status = await statusResponse.json() as JobStatusResponse;
         if (status.status === "completed" || status.status === "failed") {
           finalStatus = status;
           break;
@@ -222,9 +243,9 @@ describe("Integration Tests", () => {
       }
 
       expect(finalStatus).toBeDefined();
-      expect(finalStatus.jobId).toBe(jobId);
-      expect(finalStatus.status).toBe("completed");
-      expect(finalStatus.shortlink).toBeDefined();
+      expect(finalStatus!.jobId).toBe(jobId);
+      expect(finalStatus!.status).toBe("completed");
+      expect(finalStatus!.shortlink).toBeDefined();
     }, 20000);
 
     it("GET /jobs/:id returns 404 for non-existent job", async () => {
@@ -251,7 +272,7 @@ describe("Integration Tests", () => {
         body: JSON.stringify(input),
       });
       expect(response1.status).toBe(200);
-      const body1 = await response1.json();
+      const body1 = await response1.json() as SyncRenderResponse;
       expect(body1.shortlink).toBeDefined();
 
       // Second request with same input
@@ -264,7 +285,7 @@ describe("Integration Tests", () => {
         body: JSON.stringify(input),
       });
       expect(response2.status).toBe(200);
-      const body2 = await response2.json();
+      const body2 = await response2.json() as SyncRenderResponse;
 
       // Should return same shortlink and mark as cached
       expect(body1.shortlink).toBe(body2.shortlink);

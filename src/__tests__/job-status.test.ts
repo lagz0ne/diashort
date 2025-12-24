@@ -45,7 +45,7 @@ describe("job-status-flow", () => {
     const ctx = scope.createContext();
     const result = await ctx.exec({
       flow: jobStatusFlow,
-      input: { jobId },
+      rawInput: { jobId },
     });
     await ctx.close();
 
@@ -59,7 +59,7 @@ describe("job-status-flow", () => {
 
     await expect(ctx.exec({
       flow: jobStatusFlow,
-      input: { jobId: "job_notexist" },
+      rawInput: { jobId: "job_notexist" },
     })).rejects.toThrow(JobNotFoundError);
 
     await ctx.close();

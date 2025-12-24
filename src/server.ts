@@ -233,7 +233,7 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
           try {
             const result = await ctx.exec({
               flow: jobStatusFlow,
-              input: { jobId },
+              rawInput: { jobId },
             });
 
             return new Response(JSON.stringify(result), {

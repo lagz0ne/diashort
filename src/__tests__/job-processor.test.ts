@@ -74,6 +74,7 @@ describe("job-processor", () => {
     }
 
     const job = jobStore.get(jobId);
-    expect(["completed", "failed"]).toContain(job?.status);
+    expect(job).not.toBeNull();
+    expect(["completed", "failed"]).toContain(job!.status);
   });
 });
