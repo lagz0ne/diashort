@@ -39,8 +39,13 @@ export const browserPoolAtom = atom({
 
       if (launched < poolSize) {
         launched++;
-        const browser = await launchBrowser();
-        return browser;
+        try {
+          const browser = await launchBrowser();
+          return browser;
+        } catch (error) {
+          launched--;
+          throw error;
+        }
       }
 
       return new Promise((resolve) => {
