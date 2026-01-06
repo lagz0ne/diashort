@@ -5,134 +5,91 @@ title: SQLite Database
 type: container
 parent: c3-0
 summary: >
-  Embedded SQLite database that provides persistent storage for job records.
-  Uses bun:sqlite (Bun's native SQLite module) for zero-config, durable data storage.
+  Persistent storage for diagram source code. Single-file database accessed via
+  Bun's native bun:sqlite module (in-process, no network).
 ---
 
 # SQLite Database
 
-## Inherited From Context
-
-- **Boundary:** Data persistence layer accessed by API Server container
-- **Protocols:** SQL via bun:sqlite (in-process, no network)
-- **Cross-cutting:**
-  - Data retention: Completed/failed jobs cleaned after configurable period
-  - Durability: SQLite WAL mode for crash recovery
+Embedded SQLite database storing diagram source code. Accessed via `bun:sqlite` which provides synchronous, in-process database access without external dependencies.
 
 ## Overview
 
-The SQLite Database is a separate container responsible for persistent data storage. Per C4 model conventions, databases are containers because they "store data" - a fundamentally different responsibility from compute containers that "execute behavior".
-
-This container stores job records for the async rendering system. It is accessed by the API Server container via Bun's native `bun:sqlite` module.
-
-## Technology Stack
-
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| SQLite | 3.x | Relational database engine |
-| bun:sqlite | (bundled) | Bun's native SQLite bindings |
-
-## Data Model
-
-### Jobs Entity
-
-Represents an async render request and its lifecycle.
-
-| Attribute | Nature | Purpose |
-|-----------|--------|---------|
-| id | Unique identifier | Format: `job_<uuid8>` for external reference |
-| status | State enum | Tracks job lifecycle: pending → rendering → completed/failed |
-| source | Text blob | The diagram source code to render |
-| format | Enum | Diagram type: mermaid or d2 |
-| output_type | Enum | Desired output: svg or png |
-| shortlink | Optional text | Result URL, populated on successful completion |
-| error | Optional text | Failure reason, populated on error |
-| created_at | Timestamp | When job was submitted (enables FIFO ordering) |
-| started_at | Timestamp | When rendering began (enables timeout detection) |
-| completed_at | Timestamp | When job finished (enables retention cleanup) |
-
-### Access Patterns
-
-| Pattern | Purpose | Indexed |
-|---------|---------|---------|
-| Lookup by ID | Status polling from clients | Primary key |
-| Find oldest pending | Job processor picks next work | By status + created_at |
-| Find expired completed | Cleanup old jobs | By completed_at |
-
-## Data Lifecycle
-
-### Job States
-
 ```mermaid
-stateDiagram-v2
-    [*] --> pending: Job created
-    pending --> rendering: Processor picks up
-    rendering --> completed: Render succeeds
-    rendering --> failed: Render fails
-    completed --> [*]: Cleaned up after retention period
-    failed --> [*]: Cleaned up after retention period
+flowchart TB
+    subgraph API["API Server (c3-1)"]
+        DiagramStore["Diagram Store<br/>c3-112"]
+    end
+
+    subgraph SQLite["SQLite Database (c3-2)"]
+        DB[("diagrams.db")]
+        Diagrams["diagrams table"]
+    end
+
+    DiagramStore -->|"bun:sqlite"| DB
+    DB --> Diagrams
 ```
 
-### Retention Policy
+## Schema
 
-| Job Status | Retention | Cleanup Trigger |
-|------------|-----------|-----------------|
-| pending | Indefinite | N/A (waiting for processing) |
-| rendering | Indefinite | N/A (in progress) |
-| completed | JOB_RETENTION_MS (default 1 hour) | Periodic cleanup |
-| failed | JOB_RETENTION_MS (default 1 hour) | Periodic cleanup |
+### diagrams table
 
-**Cleanup behavior:** Jobs past retention period are deleted based on their `completed_at` timestamp.
+```sql
+CREATE TABLE diagrams (
+  id TEXT PRIMARY KEY,           -- shortlink (8-char UUID)
+  source TEXT NOT NULL,          -- diagram source code
+  format TEXT NOT NULL,          -- 'mermaid' | 'd2'
+  createdAt INTEGER NOT NULL,    -- Unix timestamp ms
+  accessedAt INTEGER NOT NULL    -- Last access for cleanup
+);
+
+CREATE INDEX idx_diagrams_accessed ON diagrams(accessedAt);
+```
+
+## Access Patterns
+
+| Operation | Query | Caller |
+|-----------|-------|--------|
+| Create diagram | `INSERT INTO diagrams ...` | Create Flow (c3-114) |
+| Get diagram | `SELECT * FROM diagrams WHERE id = ?` | View Flow (c3-116) |
+| Touch access | `UPDATE diagrams SET accessedAt = ? WHERE id = ?` | View Flow (c3-116) |
+| Cleanup old | `DELETE FROM diagrams WHERE accessedAt < ?` | Cleanup job |
 
 ## Configuration
 
-| Setting | Environment Variable | Default | Purpose |
-|---------|---------------------|---------|---------|
-| Database Path | JOB_DB_PATH | ./data/jobs.db | SQLite file location |
-| Job Retention | JOB_RETENTION_MS | 3600000 (1 hour) | How long to keep completed/failed jobs |
+| Env Variable | Default | Purpose |
+|--------------|---------|---------|
+| `DIAGRAM_DB_PATH` | `./data/diagrams.db` | Database file location |
+| `DIAGRAM_RETENTION_DAYS` | `30` | How long to keep diagrams |
+| `CLEANUP_INTERVAL_MS` | `86400000` (daily) | How often to run cleanup |
 
-## Access Pattern
+## Constraints
 
-This container is accessed **only** by the API Server container (c3-1) via its Job Store component (c3-110).
+- **Single writer:** Bun process is the only writer. No WAL mode needed.
+- **In-process:** No network latency, synchronous queries are fast.
+- **File-based:** Database file must be on persistent volume in containerized deployments.
+- **No migrations:** Schema created on first access.
+
+## Data Lifecycle
 
 ```mermaid
-flowchart LR
-    subgraph c3-1["API Server (c3-1)"]
-        JobStore["Job Store<br/>c3-110"]
-    end
-
-    subgraph c3-2["SQLite Database (c3-2)"]
-        DB[(jobs.db)]
-    end
-
-    JobStore -->|bun:sqlite| DB
+stateDiagram-v2
+    [*] --> stored: POST /render
+    stored --> accessed: GET /d/:id (updates accessedAt)
+    accessed --> accessed: repeated views
+    stored --> [*]: cleanup after retention
+    accessed --> [*]: cleanup after retention
 ```
 
-## Operations
+**Retention logic:** Diagrams deleted when `accessedAt` is older than retention period. Each view updates `accessedAt`, so actively viewed diagrams persist indefinitely.
 
-### Writes
+## Testing Strategy
 
-| Operation | Frequency | Component |
-|-----------|-----------|-----------|
-| INSERT job | Per render request | Job Store (c3-110) |
-| UPDATE status | Per job state transition | Job Store (c3-110) |
-| DELETE expired | Periodic (cleanup interval) | Job Store (c3-110) |
+**Unit tests:**
+- Diagram Store CRUD operations
+- Cleanup retention logic
+- Index usage verification
 
-### Reads
-
-| Operation | Frequency | Component |
-|-----------|-----------|-----------|
-| SELECT by ID | Per status poll | Job Store (c3-110) |
-| SELECT pending (oldest) | Per processor poll cycle | Job Processor (c3-111) via Job Store |
-
-## Durability
-
-- SQLite provides ACID transactions
-- WAL mode recommended for concurrent read/write
-- Database file auto-created on first access
-- Bun runtime handles connection lifecycle
-
-## References
-
-- ADR: adr-20251223-async-render-with-job-polling.md
-- Consumer: c3-1-api-server/c3-110-job-store.md
+**Integration tests:**
+- Lifecycle with real SQLite file
+- Concurrent access patterns

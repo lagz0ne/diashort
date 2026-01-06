@@ -7,20 +7,9 @@ export interface AuthCredentials {
   password: string;
 }
 
-export interface CacheConfig {
-  ttlMs: number;
-  gcIntervalMs: number;
-}
-
-export interface QueueConfig {
-  maxConcurrent: number;
-  maxWaiting: number;
-}
-
-export interface JobConfig {
+export interface DiagramConfig {
   dbPath: string;
-  pollIntervalMs: number;
-  retentionMs: number;
+  retentionDays: number;
   cleanupIntervalMs: number;
 }
 
@@ -49,50 +38,27 @@ export const authCredentialsTag = tag<AuthCredentials | null>({
   default: null,
 });
 
-export const cacheConfigTag = tag<CacheConfig>({
-  label: "cache-config",
-  default: { ttlMs: 300000, gcIntervalMs: 60000 },
-});
-
-export const queueConfigTag = tag<QueueConfig>({
-  label: "queue-config",
-  default: { maxConcurrent: 10, maxWaiting: 50 },
-});
-
-export const jobConfigTag = tag<JobConfig>({
-  label: "job-config",
-  default: {
-    dbPath: "./data/jobs.db",
-    pollIntervalMs: 100,
-    retentionMs: 3600000,
-    cleanupIntervalMs: 60000,
-  },
-});
-
-export const browserPoolSizeTag = tag<number>({
-  label: "browser-pool-size",
-  default: 10,
-});
-
 export const baseUrlTag = tag<string>({
   label: "base-url",
   default: "",
 });
 
-export const chafaPathTag = tag<string>({
-  label: "chafa-path",
-  default: "chafa",
-});
-
-export type SpawnFn = typeof Bun.spawn;
-
-export const spawnFnTag = tag({
-  label: "spawn-fn",
-  default: Bun.spawn,
+export const diagramConfigTag = tag<DiagramConfig>({
+  label: "diagram-config",
+  default: {
+    dbPath: "./data/diagrams.db",
+    retentionDays: 30,
+    cleanupIntervalMs: 86400000, // daily
+  },
 });
 
 export const requestIdTag = tag<string>({
   label: "request-id",
+});
+
+export const requestOriginTag = tag<string>({
+  label: "request-origin",
+  default: "",
 });
 
 function getEnv(
@@ -168,23 +134,11 @@ export function loadConfigTags(
   const logLevel = parseLogLevel(env);
   const nodeEnv = getEnv(env, "NODE_ENV") ?? "development";
   const serverPort = parseNumber(env, "PORT", 3000);
-
-  const cacheTtl = parseNumber(env, "CACHE_TTL", 300000);
-  const cacheGcInterval = parseNumber(env, "CACHE_GC_INTERVAL", 60000);
-
-  const queueMaxConcurrent = parseNumber(env, "QUEUE_MAX_CONCURRENT", 10);
-  const queueMaxWaiting = parseNumber(env, "QUEUE_MAX_WAITING", 50);
-
-  const browserPoolSize = parseNumber(env, "BROWSER_POOL_SIZE", queueMaxConcurrent);
-
-  const jobDbPath = getEnv(env, "JOB_DB_PATH") ?? "./data/jobs.db";
-  const jobPollInterval = parseNumber(env, "JOB_POLL_INTERVAL_MS", 100);
-  const jobRetention = parseNumber(env, "JOB_RETENTION_MS", 3600000);
-  const jobCleanupInterval = parseNumber(env, "JOB_CLEANUP_INTERVAL_MS", 60000);
-
   const baseUrl = getEnv(env, "BASE_URL") ?? "";
 
-  const chafaPath = getEnv(env, "CHAFA_PATH") ?? "chafa";
+  const diagramDbPath = getEnv(env, "DIAGRAM_DB_PATH") ?? "./data/diagrams.db";
+  const diagramRetentionDays = parseNumber(env, "DIAGRAM_RETENTION_DAYS", 30);
+  const cleanupIntervalMs = parseNumber(env, "CLEANUP_INTERVAL_MS", 86400000);
 
   return [
     logLevelTag(logLevel),
@@ -192,16 +146,11 @@ export function loadConfigTags(
     serverPortTag(serverPort),
     authEnabledTag(authEnabled),
     authCredentialsTag(authCredentials),
-    cacheConfigTag({ ttlMs: cacheTtl, gcIntervalMs: cacheGcInterval }),
-    queueConfigTag({ maxConcurrent: queueMaxConcurrent, maxWaiting: queueMaxWaiting }),
-    browserPoolSizeTag(browserPoolSize),
     baseUrlTag(baseUrl),
-    chafaPathTag(chafaPath),
-    jobConfigTag({
-      dbPath: jobDbPath,
-      pollIntervalMs: jobPollInterval,
-      retentionMs: jobRetention,
-      cleanupIntervalMs: jobCleanupInterval,
+    diagramConfigTag({
+      dbPath: diagramDbPath,
+      retentionDays: diagramRetentionDays,
+      cleanupIntervalMs,
     }),
   ];
 }

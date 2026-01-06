@@ -1,58 +1,105 @@
+# C3 Documentation Table of Contents
+
+> **AUTO-GENERATED** - Do not edit manually. Rebuild using the c3-toc skill.
+>
+> Last generated: 2026-01-06 15:05:50
+
+## Context Level
+
+### [c3-0](./README.md) - Diashort
+> Diagram shortlink service that stores Mermaid and D2 diagram source code
+and serves HTML pages that render client-side. CDN-cacheable, no server
+rendering overhead.
+
+**Sections**:
+
 ---
-c3-version: 3
-title: Diashort Architecture - Table of Contents
+
+## Container Level
+
+### [c3-1](./c3-1-api-server/) - API Server
+> HTTP service that stores diagram source code and serves HTML pages for
+client-side rendering. Minimal server logic - just store/serve.
+
+**Sections**:
+
 ---
 
-# Diashort Architecture
+### [c3-2](./c3-2-sqlite-db/) - SQLite Database
+> Persistent storage for diagram source code. Single-file database accessed via
+Bun's native bun:sqlite module (in-process, no network).
 
-## Context
+**Sections**:
 
-- [c3-0 - Diashort Overview](README.md) - System overview, actors, containers, cross-cutting concerns
+---
 
-## Containers
+## Component Level
 
-### c3-1 - API Server
+### API Server Components
 
-- [c3-1 - API Server](c3-1-api-server/README.md) - HTTP service for diagram rendering and retrieval
+#### [c3-101](./c3-1-api-server/c3-101-bun-server.md) - Bun Server
+> HTTP entry point using Bun.serve with routing, auth, and error handling
 
-#### Components
+**Sections**:
 
-**Infrastructure**
-| ID | Name | Summary |
-|----|------|---------|
-| [c3-101](c3-1-api-server/c3-101-bun-server.md) | Bun Server | Server lifecycle, routing, auth, error mapping |
-| [c3-102](c3-1-api-server/c3-102-di-infrastructure.md) | DI Infrastructure | @pumped-fn/lite patterns |
-| [c3-108](c3-1-api-server/c3-108-config.md) | Config | Environment-based configuration |
-| [c3-109](c3-1-api-server/c3-109-logger.md) | Logger | Pino logging |
+---
 
-**Business Logic**
-| ID | Name | Summary |
-|----|------|---------|
-| [c3-103](c3-1-api-server/c3-103-render-flow.md) | Render Flow | Orchestrates diagram rendering |
-| [c3-104](c3-1-api-server/c3-104-retrieve-flow.md) | Retrieve Flow | Fetches cached diagrams |
-| [c3-112](c3-1-api-server/c3-112-job-flow.md) | Job Flow | Job status lookup |
+#### [c3-108](./c3-1-api-server/c3-108-error-handling.md) - Error Handling
+> Typed error classes with consistent HTTP status code mapping
 
-**Services**
-| ID | Name | Summary |
-|----|------|---------|
-| [c3-105](c3-1-api-server/c3-105-cache.md) | Cache | In-memory storage with TTL |
-| [c3-106](c3-1-api-server/c3-106-queue.md) | Queue | Backpressure control |
-| [c3-107](c3-1-api-server/c3-107-renderer.md) | Renderer | Spawns CLI tools |
-| [c3-110](c3-1-api-server/c3-110-job-store.md) | Job Store | Job persistence client (uses c3-2) |
-| [c3-111](c3-1-api-server/c3-111-job-processor.md) | Job Processor | Background job processor |
-| [c3-113](c3-1-api-server/c3-113-browser-pool.md) | Browser Pool | Puppeteer instance pool for mermaid |
-| [c3-115](c3-1-api-server/c3-115-terminal-renderer.md) | Terminal Renderer | PNG to terminal via chafa |
+**Sections**:
 
-### c3-2 - SQLite Database
+---
 
-- [c3-2 - SQLite Database](c3-2-sqlite-db/README.md) - Persistent storage for async job records
+#### [c3-112](./c3-1-api-server/c3-112-diagram-store.md) - Diagram Store
+> SQLite CRUD for diagram source storage with retention-based cleanup
 
-## ADRs
+**Sections**:
 
-| ID | Title | Status |
-|----|-------|--------|
-| [adr-20251223-async-render](adr/adr-20251223-async-render-with-job-polling.md) | Async Render with Job Polling | Accepted |
-| [adr-20251223-mermaid-browser-pool](adr/adr-20251223-mermaid-browser-pool.md) | Replace mmdc CLI with Puppeteer Browser Pool | Accepted |
-| [adr-20251223-split-boundaries](adr/adr-20251223-split-component-boundaries.md) | Split Component Boundaries | Proposed |
-| [adr-20251224-catimg-terminal-output](adr/adr-20251224-catimg-terminal-output.md) | Add catimg Terminal Output for CLI Display | Accepted |
-| [adr-20251224-chafa-terminal-renderer](adr/adr-20251224-chafa-terminal-renderer.md) | Replace catimg with chafa for Higher Quality | Accepted |
+---
+
+#### [c3-114](./c3-1-api-server/c3-114-create-flow.md) - Create Flow
+> Validate input, store diagram source, return shortlink
+
+**Sections**:
+
+---
+
+#### [c3-116](./c3-1-api-server/c3-116-view-flow.md) - View Flow
+> Lookup diagram source and generate HTML page for client-side rendering
+
+**Sections**:
+
+---
+
+#### [c3-119](./c3-1-api-server/c3-119-html-generator.md) - HTML Generator
+> Generate HTML pages with embedded diagram source for client-side rendering
+
+**Sections**:
+
+---
+
+## Architecture Decisions
+
+### [adr-20260106-client-side-rendering](./adr/adr-20260106-client-side-rendering.md) - Client-Side Diagram Rendering
+> 
+
+**Status**: Implemented
+
+**Sections**:
+
+---
+
+### [adr-00000000-c3-adoption](./adr/adr-00000000-c3-adoption.md) - C3 Architecture Documentation Adoption
+> 
+
+**Status**: Implemented
+
+**Sections**:
+
+---
+
+## Quick Reference
+
+**Total Documents**: 11
+**Contexts**: 1 | **Containers**: 2 | **Components**: 6 | **ADRs**: 2 (implemented)

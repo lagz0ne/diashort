@@ -7,12 +7,8 @@ import {
   serverPortTag,
   authEnabledTag,
   authCredentialsTag,
-  cacheConfigTag,
-  queueConfigTag,
-  browserPoolSizeTag,
   baseUrlTag,
-  chafaPathTag,
-  jobConfigTag,
+  diagramConfigTag,
 } from "../config/tags";
 
 describe("Config Tags", () => {
@@ -25,10 +21,6 @@ describe("Config Tags", () => {
         AUTH_ENABLED: "true",
         AUTH_USER: "admin",
         AUTH_PASS: "secret",
-        CACHE_TTL: "60000",
-        CACHE_GC_INTERVAL: "10000",
-        QUEUE_MAX_CONCURRENT: "5",
-        QUEUE_MAX_WAITING: "20",
       };
 
       const tagged = loadConfigTags(env);
@@ -40,14 +32,6 @@ describe("Config Tags", () => {
       expect(authCredentialsTag.find(tagged)).toEqual({
         username: "admin",
         password: "secret",
-      });
-      expect(cacheConfigTag.find(tagged)).toEqual({
-        ttlMs: 60000,
-        gcIntervalMs: 10000,
-      });
-      expect(queueConfigTag.find(tagged)).toEqual({
-        maxConcurrent: 5,
-        maxWaiting: 20,
       });
     });
 
@@ -96,15 +80,6 @@ describe("Config Tags", () => {
       expect(serverPortTag.find(tagged)).toBe(3000);
       expect(authEnabledTag.find(tagged)).toBe(false);
       expect(authCredentialsTag.find(tagged)).toBeNull();
-      expect(cacheConfigTag.find(tagged)).toEqual({
-        ttlMs: 300000,
-        gcIntervalMs: 60000,
-      });
-      expect(queueConfigTag.find(tagged)).toEqual({
-        maxConcurrent: 10,
-        maxWaiting: 50,
-      });
-      expect(browserPoolSizeTag.find(tagged)).toBe(10);
     });
 
     it("treats empty string as missing", () => {
@@ -127,24 +102,6 @@ describe("Config Tags", () => {
       expect(logLevelTag.find(tagged)).toBe("info");
     });
 
-    it("parses BROWSER_POOL_SIZE from env", () => {
-      const env = {
-        BROWSER_POOL_SIZE: "5",
-      };
-
-      const tagged = loadConfigTags(env);
-      expect(browserPoolSizeTag.find(tagged)).toBe(5);
-    });
-
-    it("defaults BROWSER_POOL_SIZE to QUEUE_MAX_CONCURRENT", () => {
-      const env = {
-        QUEUE_MAX_CONCURRENT: "8",
-      };
-
-      const tagged = loadConfigTags(env);
-      expect(browserPoolSizeTag.find(tagged)).toBe(8);
-    });
-
     it("parses BASE_URL from env", () => {
       const env = {
         BASE_URL: "https://diagrams.example.com",
@@ -160,47 +117,28 @@ describe("Config Tags", () => {
       const tagged = loadConfigTags(env);
       expect(baseUrlTag.find(tagged)).toBe("");
     });
-
-    it("parses CHAFA_PATH from env", () => {
-      const env = {
-        CHAFA_PATH: "/usr/local/bin/chafa",
-      };
-
-      const tagged = loadConfigTags(env);
-      expect(chafaPathTag.find(tagged)).toBe("/usr/local/bin/chafa");
-    });
-
-    it("defaults CHAFA_PATH to 'chafa'", () => {
-      const env = {};
-
-      const tagged = loadConfigTags(env);
-      expect(chafaPathTag.find(tagged)).toBe("chafa");
-    });
   });
 
-  describe("job config", () => {
+  describe("diagram config", () => {
     test("uses defaults when env vars not set", () => {
       const tagged = loadConfigTags({});
-      expect(jobConfigTag.find(tagged)).toEqual({
-        dbPath: "./data/jobs.db",
-        pollIntervalMs: 100,
-        retentionMs: 3600000,
-        cleanupIntervalMs: 60000,
+      expect(diagramConfigTag.find(tagged)).toEqual({
+        dbPath: "./data/diagrams.db",
+        retentionDays: 30,
+        cleanupIntervalMs: 86400000,
       });
     });
 
-    test("parses job config from env vars", () => {
+    test("parses diagram config from env vars", () => {
       const tagged = loadConfigTags({
-        JOB_DB_PATH: "/tmp/test.db",
-        JOB_POLL_INTERVAL_MS: "200",
-        JOB_RETENTION_MS: "7200000",
-        JOB_CLEANUP_INTERVAL_MS: "120000",
+        DIAGRAM_DB_PATH: "/tmp/test.db",
+        DIAGRAM_RETENTION_DAYS: "7",
+        CLEANUP_INTERVAL_MS: "3600000",
       });
-      expect(jobConfigTag.find(tagged)).toEqual({
+      expect(diagramConfigTag.find(tagged)).toEqual({
         dbPath: "/tmp/test.db",
-        pollIntervalMs: 200,
-        retentionMs: 7200000,
-        cleanupIntervalMs: 120000,
+        retentionDays: 7,
+        cleanupIntervalMs: 3600000,
       });
     });
   });
@@ -210,7 +148,7 @@ describe("Config Tags", () => {
       const scope = createScope({
         tags: [
           logLevelTag("debug"),
-          cacheConfigTag({ ttlMs: 1000, gcIntervalMs: 500 }),
+          diagramConfigTag({ dbPath: ":memory:", retentionDays: 7, cleanupIntervalMs: 1000 }),
         ],
       });
 
@@ -218,9 +156,10 @@ describe("Config Tags", () => {
 
       const ctx = scope.createContext();
       expect(ctx.data.seekTag(logLevelTag)).toBe("debug");
-      expect(ctx.data.seekTag(cacheConfigTag)).toEqual({
-        ttlMs: 1000,
-        gcIntervalMs: 500,
+      expect(ctx.data.seekTag(diagramConfigTag)).toEqual({
+        dbPath: ":memory:",
+        retentionDays: 7,
+        cleanupIntervalMs: 1000,
       });
 
       await ctx.close();

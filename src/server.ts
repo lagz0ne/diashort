@@ -1,15 +1,10 @@
 import { createScope, type Lite, atom, tags } from "@pumped-fn/lite";
-import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requestIdTag, baseUrlTag } from "./config/tags";
+import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requestIdTag, diagramConfigTag, requestOriginTag } from "./config/tags";
 import { AuthError } from "./extensions/auth";
-import { renderFlow, ValidationError, BackpressureError, RenderError } from "./flows/render";
-import { retrieveFlow, NotFoundError } from "./flows/retrieve";
-import { asyncRenderFlow } from "./flows/render-async";
-import { jobStatusFlow, JobNotFoundError } from "./flows/job-status";
-import { renderTerminalFlow } from "./flows/render-terminal";
-import { ChafaError } from "./atoms/terminal-renderer";
+import { createFlow, ValidationError } from "./flows/create";
+import { viewFlow, NotFoundError } from "./flows/view";
 import { loggerAtom } from "./atoms/logger";
-import { browserPoolAtom } from "./atoms/browser-pool";
-import { jobProcessorAtom } from "./atoms/job-processor";
+import { diagramStoreAtom } from "./atoms/diagram-store";
 
 const serverConfigAtom = atom({
   deps: {
@@ -92,34 +87,6 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
-  if (error instanceof JobNotFoundError) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (error instanceof BackpressureError) {
-    return new Response(JSON.stringify({ error: "Service temporarily unavailable" }), {
-      status: 429,
-      headers: { "Content-Type": "application/json", "Retry-After": "5" },
-    });
-  }
-
-  if (error instanceof RenderError) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (error instanceof ChafaError) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
   const message = error instanceof Error ? error.message : "Internal server error";
   return new Response(JSON.stringify({ error: message }), {
     status: 500,
@@ -137,21 +104,18 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
   const port = await scope.resolve(serverConfigAtom);
   const logger = await scope.resolve(loggerAtom);
   const authConfig = await scope.resolve(authConfigAtom);
+  const diagramConfig = await scope.resolve(atom({
+    deps: { config: tags.required(diagramConfigTag) },
+    factory: (_ctx, { config }) => config,
+  }));
 
-  // Extract baseUrl using seekTag for consistency with flows
-  const tempCtx = scope.createContext();
-  const baseUrl = tempCtx.data.seekTag(baseUrlTag) ?? "";
-  await tempCtx.close();
+  // Resolve diagram store to initialize DB
+  const diagramStore = await scope.resolve(diagramStoreAtom);
 
-  // Warm up browser pool for fast first requests
-  const browserPool = await scope.resolve(browserPoolAtom);
-  logger.info("Warming up browser pool...");
-  await browserPool.warmUp();
-  logger.info("Browser pool ready");
-
-  // Start job processor
-  const jobProcessor = await scope.resolve(jobProcessorAtom);
-  logger.info("Job processor started");
+  // Start cleanup interval
+  const cleanupInterval = setInterval(() => {
+    diagramStore.cleanup();
+  }, diagramConfig.cleanupIntervalMs);
 
   logger.info({ port }, "Starting server");
 
@@ -169,74 +133,18 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
           }
 
           const body = await req.json();
-          const mode = url.searchParams.get("mode");
 
-          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
-
-          try {
-            // Sync mode: use renderFlow for blocking render
-            if (mode === "sync") {
-              const result = await ctx.exec({
-                flow: renderFlow,
-                rawInput: body,
-              });
-
-              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `${baseUrl}/d/${result.shortlink}`, cached: result.cached }), {
-                status: 200,
-                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
-              });
-            }
-
-            // Async mode (default): use asyncRenderFlow
-            const result = await ctx.exec({
-              flow: asyncRenderFlow,
-              rawInput: body,
-            });
-
-            // Cache hit - return 200 with shortlink
-            if (result.mode === "sync") {
-              return new Response(JSON.stringify({ shortlink: result.shortlink, url: `${baseUrl}/d/${result.shortlink}`, cached: result.cached }), {
-                status: 200,
-                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
-              });
-            }
-
-            // Job created - return 202 with job info
-            return new Response(JSON.stringify({
-              jobId: result.jobId,
-              status: result.status,
-              statusUrl: result.statusUrl,
-            }), {
-              status: 202,
-              headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
-            });
-          } finally {
-            await ctx.close();
-          }
-        }
-
-        if (req.method === "POST" && url.pathname === "/render/terminal") {
-          if (authConfig.enabled && authConfig.credentials) {
-            const authHeader = req.headers.get("authorization");
-            checkBasicAuth(authHeader, authConfig.credentials.username, authConfig.credentials.password);
-          }
-
-          const body = await req.json();
-
-          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
 
           try {
             const result = await ctx.exec({
-              flow: renderTerminalFlow,
+              flow: createFlow,
               rawInput: body,
             });
 
-            return new Response(result.output, {
+            return new Response(JSON.stringify({ shortlink: result.shortlink, url: result.url }), {
               status: 200,
-              headers: {
-                "Content-Type": "text/plain; charset=utf-8",
-                "X-Request-Id": requestId,
-              },
+              headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
             });
           } finally {
             await ctx.close();
@@ -250,39 +158,16 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
 
           try {
             const result = await ctx.exec({
-              flow: retrieveFlow,
+              flow: viewFlow,
               input: { shortlink },
             });
 
-            return new Response(result.data, {
+            return new Response(result.html, {
               status: 200,
               headers: {
                 "Content-Type": result.contentType,
                 "X-Request-Id": requestId,
-                "Cache-Control": "public, max-age=300",
-              },
-            });
-          } finally {
-            await ctx.close();
-          }
-        }
-
-        if (req.method === "GET" && url.pathname.startsWith("/jobs/")) {
-          const jobId = url.pathname.slice(6);
-
-          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
-
-          try {
-            const result = await ctx.exec({
-              flow: jobStatusFlow,
-              rawInput: { jobId },
-            });
-
-            return new Response(JSON.stringify(result), {
-              status: 200,
-              headers: {
-                "Content-Type": "application/json",
-                "X-Request-Id": requestId,
+                "Cache-Control": "public, max-age=31536000, immutable",
               },
             });
           } finally {
@@ -305,7 +190,8 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
 
           const usage = `# Diashort - Diagram Shortlink Service
 
-Render Mermaid or D2 diagrams and get a shareable shortlink.
+Stores Mermaid or D2 diagram source and returns a shareable shortlink.
+Diagrams render client-side in the browser.
 
 ## Authentication
 
@@ -316,61 +202,25 @@ To enable: Set AUTH_ENABLED=true, AUTH_USER, and AUTH_PASS environment variables
 ## Endpoints
 
 ### POST /render
-Submit a diagram for async rendering.
+Submit a diagram for storage.
 
 Request:
   curl -X POST ${url.origin}/render \\${curlAuth}
     -H "Content-Type: application/json" \\
-    -d '{"source": "graph TD; A-->B;", "format": "mermaid", "outputType": "svg"}'
+    -d '{"source": "graph TD; A-->B;", "format": "mermaid"}'
 
 Response:
-  {"jobId": "job_abc123", "status": "pending", "statusUrl": "/jobs/job_abc123"}
+  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345"}
 
 Parameters:
   - source: Diagram source code (required)
   - format: "mermaid" or "d2" (required)
-  - outputType: "svg" or "png" (default: "svg")
-
-### GET /jobs/:jobId
-Check job status and get the shortlink when complete.
-
-Example:
-  curl ${url.origin}/jobs/job_abc123
-
-Response (pending):
-  {"jobId": "job_abc123", "status": "pending", "shortlink": null, "error": null, "url": null}
-
-Response (completed):
-  {"jobId": "job_abc123", "status": "completed", "shortlink": "abc12345", "error": null, "url": "/d/abc12345"}
-
-### POST /render/terminal
-Render a diagram and stream terminal output via chafa.
-
-Request:
-  curl -X POST ${url.origin}/render/terminal \\${curlAuth}
-    -H "Content-Type: application/json" \\
-    -d '{"source": "graph TD; A-->B;", "format": "mermaid", "width": 120, "output": "sixels"}'
-
-Parameters:
-  - source: Diagram source code (required)
-  - format: "mermaid" or "d2" (required)
-  - width: Terminal width in columns (default: 80)
-  - scale: PNG render scale 1-4 for quality (default: 2)
-  - output: Terminal format - "symbols", "sixels", "kitty", "iterm" (default: symbols)
-
-Output formats:
-  - symbols: Unicode art, works everywhere (default)
-  - sixels: High quality, for xterm/mlterm/foot
-  - kitty: Native protocol for Kitty terminal
-  - iterm: Native protocol for iTerm2
-
-Response: Terminal graphics output (ANSI or native protocol).
 
 ### GET /d/:shortlink
-Retrieve a rendered diagram by its shortlink.
+View the diagram (returns HTML page that renders client-side).
 
 Example:
-  curl ${url.origin}/d/abc12345
+  Open in browser: ${url.origin}/d/abc12345
 
 ### GET /health
 Health check endpoint.
