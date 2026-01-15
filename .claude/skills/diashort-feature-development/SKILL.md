@@ -1,21 +1,23 @@
 ---
 name: diashort-feature-development
-description: Use when adding new features to diashort - guides through brainstorming, planning, and subagent-driven implementation with reviews
+description: Use when making changes to diashort - new features, bug fixes, refactoring, or modifications. Guides through brainstorming, planning, and subagent-driven implementation with reviews.
 ---
 
-# Diashort Feature Development
+# Diashort Development Workflow
 
 ## Overview
 
-End-to-end workflow for adding features to diashort: brainstorm → plan → implement with subagents → review → merge.
+End-to-end workflow for diashort changes: brainstorm → plan → implement with subagents → review → merge.
 
 **Core principle:** Design before code, plan before implementation, review every task.
 
 ## When to Use
 
-- Adding new endpoints or features to diashort
-- Implementing user-requested functionality
-- Any non-trivial change (more than a few lines)
+- Adding new features or endpoints
+- Fixing bugs (non-trivial)
+- Refactoring or modifying existing functionality
+- Any change touching multiple files
+- Any change requiring tests
 
 ## The Workflow
 
