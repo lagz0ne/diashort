@@ -4,8 +4,10 @@ import { AuthError } from "./extensions/auth";
 import { createFlow, ValidationError } from "./flows/create";
 import { viewFlow, NotFoundError } from "./flows/view";
 import { embedFlow, EmbedNotSupportedError } from "./flows/embed";
+import { createDiffFlow, viewDiffFlow, DiffValidationError, DiffNotFoundError } from "./flows/diff";
 import { loggerAtom } from "./atoms/logger";
 import { diagramStoreAtom } from "./atoms/diagram-store";
+import { diffStoreAtom } from "./atoms/diff-store";
 
 const serverConfigAtom = atom({
   deps: {
@@ -95,6 +97,20 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
+  if (error instanceof DiffValidationError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (error instanceof DiffNotFoundError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const message = error instanceof Error ? error.message : "Internal server error";
   return new Response(JSON.stringify({ error: message }), {
     status: 500,
@@ -119,10 +135,12 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
 
   // Resolve diagram store to initialize DB
   const diagramStore = await scope.resolve(diagramStoreAtom);
+  const diffStore = await scope.resolve(diffStoreAtom);
 
   // Start cleanup interval
   const cleanupInterval = setInterval(() => {
     diagramStore.cleanup();
+    diffStore.cleanup();
   }, diagramConfig.cleanupIntervalMs);
 
   logger.info({ port }, "Starting server");
@@ -156,6 +174,31 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
             }
 
             return new Response(JSON.stringify(responseBody), {
+              status: 200,
+              headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+            });
+          } finally {
+            await ctx.close();
+          }
+        }
+
+        if (req.method === "POST" && url.pathname === "/diff") {
+          if (authConfig.enabled && authConfig.credentials) {
+            const authHeader = req.headers.get("authorization");
+            checkBasicAuth(authHeader, authConfig.credentials.username, authConfig.credentials.password);
+          }
+
+          const body = await req.json();
+
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
+
+          try {
+            const result = await ctx.exec({
+              flow: createDiffFlow,
+              rawInput: body,
+            });
+
+            return new Response(JSON.stringify({ shortlink: result.shortlink, url: result.url }), {
               status: 200,
               headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
             });
@@ -201,6 +244,30 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
             });
 
             return new Response(result.svg, {
+              status: 200,
+              headers: {
+                "Content-Type": result.contentType,
+                "X-Request-Id": requestId,
+                "Cache-Control": "public, max-age=31536000, immutable",
+              },
+            });
+          } finally {
+            await ctx.close();
+          }
+        }
+
+        if (req.method === "GET" && url.pathname.startsWith("/diff/")) {
+          const shortlink = url.pathname.slice(6);
+
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
+
+          try {
+            const result = await ctx.exec({
+              flow: viewDiffFlow,
+              input: { shortlink },
+            });
+
+            return new Response(result.html, {
               status: 200,
               headers: {
                 "Content-Type": result.contentType,
@@ -273,6 +340,28 @@ Query parameters:
   - theme: "light" (default) or "dark"
 
 Note: Mermaid diagrams do not support embedding (returns 404).
+
+### POST /diff
+Create a side-by-side comparison of two diagrams.
+
+Request:
+  curl -X POST ${url.origin}/diff \\${curlAuth}
+    -H "Content-Type: application/json" \\
+    -d '{"format": "mermaid", "before": "graph TD; A-->B;", "after": "graph TD; A-->B-->C;"}'
+
+Response:
+  {"shortlink": "xyz78901", "url": "${url.origin}/diff/xyz78901"}
+
+Parameters:
+  - format: "mermaid" or "d2" (required)
+  - before: Source code for the "before" diagram (required)
+  - after: Source code for the "after" diagram (required)
+
+### GET /diff/:shortlink
+View the side-by-side comparison with synced zoom/pan.
+
+Example:
+  Open in browser: ${url.origin}/diff/xyz78901
 
 ### GET /health
 Health check endpoint.
