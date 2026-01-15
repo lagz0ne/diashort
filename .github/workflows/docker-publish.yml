@@ -54,3 +54,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trigger deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          curl -s -X POST https://apps.quickable.co/api/deploy/ciT9ztc31-k_Ue8sq5pW2
