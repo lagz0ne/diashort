@@ -279,4 +279,148 @@ describe("Integration Tests", () => {
       expect(body.url).toMatch(/\/d\/[a-f0-9]{8}$/);
     });
   });
+
+  describe("Diff endpoints", () => {
+    it("POST /diff without auth returns 401", async () => {
+      const res = await fetch(`${baseUrl}/diff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: "mermaid",
+          before: "graph TD; A-->B;",
+          after: "graph TD; A-->B-->C;",
+        }),
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it("POST /diff with missing before returns 400", async () => {
+      const res = await fetch(`${baseUrl}/diff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          format: "mermaid",
+          after: "graph TD; A-->B;",
+        }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("before");
+    });
+
+    it("POST /diff with missing after returns 400", async () => {
+      const res = await fetch(`${baseUrl}/diff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          format: "mermaid",
+          before: "graph TD; A-->B;",
+        }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("after");
+    });
+
+    it("POST /diff creates mermaid diff and returns shortlink", async () => {
+      const res = await fetch(`${baseUrl}/diff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          format: "mermaid",
+          before: "graph TD; A-->B;",
+          after: "graph TD; A-->B-->C;",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { shortlink: string; url: string };
+      expect(body.shortlink).toMatch(/^[a-f0-9]{8}$/);
+      expect(body.url).toBe(`${baseUrl}/diff/${body.shortlink}`);
+    });
+
+    it("GET /diff/:shortlink returns HTML with side-by-side view", async () => {
+      // Create a diff first
+      const createRes = await fetch(`${baseUrl}/diff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          format: "mermaid",
+          before: "graph TD; X-->Y;",
+          after: "graph TD; X-->Y-->Z;",
+        }),
+      });
+      const createBody = await createRes.json() as { shortlink: string };
+
+      // View the diff
+      const viewRes = await fetch(`${baseUrl}/diff/${createBody.shortlink}`);
+
+      expect(viewRes.status).toBe(200);
+      expect(viewRes.headers.get("Content-Type")).toBe("text/html");
+
+      const html = await viewRes.text();
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).toContain("Before");
+      expect(html).toContain("After");
+      expect(html).toContain("diff-container");
+    });
+
+    it("GET /diff/:shortlink has cache headers", async () => {
+      const createRes = await fetch(`${baseUrl}/diff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          format: "mermaid",
+          before: "graph TD; Cache-->Test;",
+          after: "graph TD; Cache-->Test-->Done;",
+        }),
+      });
+      const createBody = await createRes.json() as { shortlink: string };
+
+      const viewRes = await fetch(`${baseUrl}/diff/${createBody.shortlink}`);
+
+      expect(viewRes.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+    });
+
+    it("GET /diff/nonexistent returns 404", async () => {
+      const res = await fetch(`${baseUrl}/diff/nonexist`);
+      expect(res.status).toBe(404);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("not found");
+    });
+
+    it("POST /diff with d2 format validates syntax", async () => {
+      const res = await fetch(`${baseUrl}/diff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          format: "d2",
+          before: "a -> b",
+          after: "a -> b -> c",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { shortlink: string; url: string };
+      expect(body.shortlink).toMatch(/^[a-f0-9]{8}$/);
+    });
+  });
 });
