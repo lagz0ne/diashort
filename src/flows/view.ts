@@ -3,6 +3,7 @@ import { diagramStoreAtom } from "../atoms/diagram-store";
 import { htmlGeneratorAtom } from "../atoms/html-generator";
 import { d2RendererAtom } from "../atoms/d2-renderer";
 import { loggerAtom } from "../atoms/logger";
+import { baseUrlTag, requestOriginTag } from "../config/tags";
 
 export class NotFoundError extends Error {
   public readonly statusCode = 404;
@@ -47,6 +48,11 @@ export const viewFlow = flow({
   factory: async (ctx, { diagramStore, htmlGenerator, d2Renderer, logger }): Promise<ViewOutput> => {
     const { input } = ctx;
 
+    // Get base URL for embed link
+    const configuredBaseUrl = ctx.data.seekTag(baseUrlTag);
+    const requestOrigin = ctx.data.seekTag(requestOriginTag) ?? "";
+    const baseUrl = configuredBaseUrl || requestOrigin;
+
     logger.debug({ shortlink: input.shortlink }, "Viewing diagram");
 
     const diagram = diagramStore.get(input.shortlink);
@@ -68,7 +74,9 @@ export const viewFlow = flow({
         d2Renderer.render(diagram.source, "dark"),
       ]);
 
-      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink);
+      // Include embed URL for OpenGraph tags
+      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}` : undefined;
+      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl });
       logger.debug({ shortlink: input.shortlink }, "Generated D2 HTML page with pre-rendered SVG");
     } else {
       // Mermaid renders client-side

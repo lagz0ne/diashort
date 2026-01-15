@@ -11,6 +11,7 @@ export interface CreateInput {
 export interface CreateResult {
   shortlink: string;
   url: string;
+  embed?: string;
 }
 
 export class ValidationError extends Error {
@@ -63,10 +64,17 @@ export const createFlow = flow({
 
     logger.info({ shortlink, format: input.format }, "Diagram created");
 
-    return {
+    const result: CreateResult = {
       shortlink,
       url: `${baseUrl}/d/${shortlink}`,
     };
+
+    // Include embed URL only for D2 (server-side rendered)
+    if (input.format === "d2") {
+      result.embed = `${baseUrl}/e/${shortlink}`;
+    }
+
+    return result;
   },
 });
 

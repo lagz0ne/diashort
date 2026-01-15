@@ -1,8 +1,12 @@
 import { atom } from "@pumped-fn/lite";
 
+export interface HTMLGeneratorOptions {
+  embedUrl?: string;
+}
+
 export interface HTMLGenerator {
   generateMermaid(source: string, shortlink: string): string;
-  generateD2(lightSvg: string, darkSvg: string, shortlink: string): string;
+  generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string;
 }
 
 function escapeJs(str: string): string {
@@ -397,19 +401,30 @@ export const htmlGeneratorAtom = atom({
 </html>`;
     },
 
-    generateD2(lightSvg: string, darkSvg: string, shortlink: string): string {
+    generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string {
       const title = `Diagram - ${shortlink}`;
 
       // Escape SVGs for embedding in script
       const escapedLightSvg = escapeJs(lightSvg);
       const escapedDarkSvg = escapeJs(darkSvg);
 
+      // OpenGraph meta tags for link previews (only when embedUrl is provided)
+      const ogTags = options?.embedUrl
+        ? `
+  <meta property="og:type" content="image">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:image" content="${escapeHtml(options.embedUrl)}">
+  <meta property="og:image:type" content="image/svg+xml">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="${escapeHtml(options.embedUrl)}">`
+        : "";
+
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>
+  <title>${escapeHtml(title)}</title>${ogTags}
   <style>${baseStyles}</style>
 </head>
 <body>

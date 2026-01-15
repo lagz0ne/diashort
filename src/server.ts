@@ -3,6 +3,7 @@ import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requ
 import { AuthError } from "./extensions/auth";
 import { createFlow, ValidationError } from "./flows/create";
 import { viewFlow, NotFoundError } from "./flows/view";
+import { embedFlow, EmbedNotSupportedError } from "./flows/embed";
 import { loggerAtom } from "./atoms/logger";
 import { diagramStoreAtom } from "./atoms/diagram-store";
 
@@ -87,6 +88,13 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
+  if (error instanceof EmbedNotSupportedError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const message = error instanceof Error ? error.message : "Internal server error";
   return new Response(JSON.stringify({ error: message }), {
     status: 500,
@@ -142,7 +150,12 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
               rawInput: body,
             });
 
-            return new Response(JSON.stringify({ shortlink: result.shortlink, url: result.url }), {
+            const responseBody: Record<string, string> = { shortlink: result.shortlink, url: result.url };
+            if (result.embed) {
+              responseBody.embed = result.embed;
+            }
+
+            return new Response(JSON.stringify(responseBody), {
               status: 200,
               headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
             });
@@ -154,7 +167,7 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
         if (req.method === "GET" && url.pathname.startsWith("/d/")) {
           const shortlink = url.pathname.slice(3);
 
-          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
 
           try {
             const result = await ctx.exec({
@@ -163,6 +176,31 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
             });
 
             return new Response(result.html, {
+              status: 200,
+              headers: {
+                "Content-Type": result.contentType,
+                "X-Request-Id": requestId,
+                "Cache-Control": "public, max-age=31536000, immutable",
+              },
+            });
+          } finally {
+            await ctx.close();
+          }
+        }
+
+        if (req.method === "GET" && url.pathname.startsWith("/e/")) {
+          const shortlink = url.pathname.slice(3);
+          const theme = url.searchParams.get("theme") === "dark" ? "dark" : "light";
+
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
+
+          try {
+            const result = await ctx.exec({
+              flow: embedFlow,
+              input: { shortlink, theme },
+            });
+
+            return new Response(result.svg, {
               status: 200,
               headers: {
                 "Content-Type": result.contentType,
@@ -207,9 +245,12 @@ Submit a diagram for storage.
 Request:
   curl -X POST ${url.origin}/render \\${curlAuth}
     -H "Content-Type: application/json" \\
-    -d '{"source": "graph TD; A-->B;", "format": "mermaid"}'
+    -d '{"source": "A -> B -> C", "format": "d2"}'
 
-Response:
+Response (D2):
+  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345", "embed": "${url.origin}/e/abc12345"}
+
+Response (Mermaid):
   {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345"}
 
 Parameters:
@@ -217,10 +258,21 @@ Parameters:
   - format: "mermaid" or "d2" (required)
 
 ### GET /d/:shortlink
-View the diagram (returns HTML page that renders client-side).
+View the diagram (returns HTML page with interactive viewer).
 
 Example:
   Open in browser: ${url.origin}/d/abc12345
+
+### GET /e/:shortlink
+Get raw SVG for embedding (D2 only).
+
+Use in markdown:
+  ![Diagram](${url.origin}/e/abc12345)
+
+Query parameters:
+  - theme: "light" (default) or "dark"
+
+Note: Mermaid diagrams do not support embedding (returns 404).
 
 ### GET /health
 Health check endpoint.
