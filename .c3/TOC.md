@@ -2,7 +2,7 @@
 
 > **AUTO-GENERATED** - Do not edit manually. Rebuild using the c3-toc skill.
 >
-> Last generated: 2026-01-06 15:05:50
+> Last generated: 2026-01-15 17:29:53
 
 ## Context Level
 

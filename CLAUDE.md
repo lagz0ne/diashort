@@ -1,3 +1,9 @@
+# Important
+- use diashort where applicable to explain the concept
+- always load /superpowers:brainstorming no matter what the ask is
+- can always use dev-browser in headless mode to review the work
+
+# Bun details
 
 Default to using Bun instead of Node.js.
 
@@ -104,3 +110,4 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.md`.
+
