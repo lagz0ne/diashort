@@ -3,6 +3,13 @@
 - always load /superpowers:brainstorming no matter what the ask is
 - can always use dev-browser in headless mode to review the work
 
+# Diashort Development
+
+When adding new endpoints:
+- Update the root `/` endpoint usage text in `src/server.ts` with documentation
+- Add integration tests in `src/__tests__/integration.test.ts`
+- Follow the existing patterns (atoms for storage, flows for business logic)
+
 # Bun details
 
 Default to using Bun instead of Node.js.
