@@ -1,4 +1,16 @@
 import { tag } from "@pumped-fn/lite";
+import { z } from "zod";
+
+// Schema for validating BASE_URL - must be a valid URL without trailing slash
+const baseUrlSchema = z
+  .string()
+  .url("BASE_URL must be a valid URL")
+  .refine((url) => !url.endsWith("/"), {
+    message: "BASE_URL must not end with a trailing slash",
+  })
+  .refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
+    message: "BASE_URL must start with http:// or https://",
+  });
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -134,7 +146,18 @@ export function loadConfigTags(
   const logLevel = parseLogLevel(env);
   const nodeEnv = getEnv(env, "NODE_ENV") ?? "development";
   const serverPort = parseNumber(env, "PORT", 3000);
-  const baseUrl = getEnv(env, "BASE_URL") ?? "";
+
+  // Validate BASE_URL if provided
+  let baseUrl = "";
+  const rawBaseUrl = getEnv(env, "BASE_URL");
+  if (rawBaseUrl) {
+    const result = baseUrlSchema.safeParse(rawBaseUrl);
+    if (!result.success) {
+      const issues = result.error.issues;
+      throw new Error(`Invalid BASE_URL: ${issues[0]?.message ?? "validation failed"}`);
+    }
+    baseUrl = result.data;
+  }
 
   const diagramDbPath = getEnv(env, "DIAGRAM_DB_PATH") ?? "./data/diagrams.db";
   const diagramRetentionDays = parseNumber(env, "DIAGRAM_RETENTION_DAYS", 30);

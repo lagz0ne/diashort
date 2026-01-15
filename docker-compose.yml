@@ -4,6 +4,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # - BASE_URL=https://diashort.example.com  # Public URL for generated links (no trailing slash)
       - AUTH_USER=admin
       - AUTH_PASS=changeme
       - PORT=3000
