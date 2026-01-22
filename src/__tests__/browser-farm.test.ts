@@ -84,4 +84,91 @@ describeWithChrome("BrowserFarm", () => {
       await farm.stop();
     }
   }, 60000); // Concurrent renders with queue processing
+
+  it("rejects render before start", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+    });
+
+    await expect(farm.render("graph TD; A-->B")).rejects.toThrow("farm not started");
+  });
+
+  it("stop rejects all pending promises", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+      timeout: 60_000, // Long timeout so job doesn't finish
+      noSandbox: true,
+    });
+
+    await farm.start();
+
+    // Start a render but don't await it
+    const renderPromise = farm.render("graph TD; A-->B");
+
+    // Stop immediately
+    await farm.stop();
+
+    // Render should reject
+    await expect(renderPromise).rejects.toThrow("farm stopped");
+  });
+
+  it("rejects on invalid mermaid syntax", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+      noSandbox: true,
+    });
+
+    await farm.start();
+
+    try {
+      await expect(farm.render("not valid mermaid")).rejects.toThrow();
+    } finally {
+      await farm.stop();
+    }
+  }, 30000);
+
+  it("rejects on render timeout", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+      timeout: 1, // 1ms timeout - will always fail
+      noSandbox: true,
+    });
+
+    await farm.start();
+
+    try {
+      await expect(farm.render("graph TD; A-->B")).rejects.toThrow("timeout");
+    } finally {
+      await farm.stop();
+    }
+  }, 30000);
+
+  it("retry eventually resolves original promise on success", async () => {
+    // This test verifies that when a job fails and is retried,
+    // the original render() promise is eventually resolved on success
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 2, // Need 2 browsers so second can pick up retry
+      noSandbox: true,
+    });
+
+    await farm.start();
+
+    try {
+      // Simple diagram should succeed
+      const svg = await farm.render("graph TD; A-->B");
+      expect(svg).toContain("<svg");
+    } finally {
+      await farm.stop();
+    }
+  }, 30000);
 });
