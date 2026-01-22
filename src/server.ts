@@ -1,9 +1,10 @@
 import { createScope, type Lite, atom, tags } from "@pumped-fn/lite";
 import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requestIdTag, diagramConfigTag, requestOriginTag } from "./config/tags";
+import { optionalMermaidRendererAtom } from "./atoms/mermaid-renderer";
 import { AuthError } from "./extensions/auth";
 import { createFlow, ValidationError } from "./flows/create";
 import { viewFlow, NotFoundError } from "./flows/view";
-import { embedFlow, EmbedNotSupportedError } from "./flows/embed";
+import { embedFlow, EmbedNotSupportedError, EmbedRenderError } from "./flows/embed";
 import { createDiffFlow, viewDiffFlow, DiffValidationError, DiffNotFoundError } from "./flows/diff";
 import { loggerAtom } from "./atoms/logger";
 import { diagramStoreAtom } from "./atoms/diagram-store";
@@ -97,6 +98,13 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
+  if (error instanceof EmbedRenderError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: error.statusCode,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   if (error instanceof DiffValidationError) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
@@ -136,6 +144,13 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
   // Resolve diagram store to initialize DB
   const diagramStore = await scope.resolve(diagramStoreAtom);
   const diffStore = await scope.resolve(diffStoreAtom);
+
+  // Resolve mermaid renderer if configured (fail-fast check)
+  // Uses optionalMermaidRendererAtom which is the same atom used by embedFlow
+  const mermaidRenderer = await scope.resolve(optionalMermaidRendererAtom);
+  if (mermaidRenderer) {
+    logger.info("Mermaid SSR enabled");
+  }
 
   // Start cleanup interval
   const cleanupInterval = setInterval(() => {
