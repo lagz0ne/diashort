@@ -43,3 +43,6 @@ data/
 # Test artifacts
 test.png
 *.png
+
+# Chrome headless shell (downloaded at build time)
+chrome-headless-shell/

@@ -171,4 +171,62 @@ describeWithChrome("BrowserFarm", () => {
       await farm.stop();
     }
   }, 30000);
+
+  it("allows valid text containing 'data:' in labels", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+      noSandbox: true,
+    });
+
+    await farm.start();
+
+    try {
+      // Valid diagram with "data:" as part of label text (not a data URI)
+      const svg = await farm.render("graph TD\n    A[Show data: step 1] --> B[Process data: values]");
+      expect(svg).toContain("<svg");
+    } finally {
+      await farm.stop();
+    }
+  }, 30000);
+
+  it("rejects dangerous data URIs", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+      noSandbox: true,
+    });
+
+    await farm.start();
+
+    try {
+      // Data URI with MIME type should be blocked
+      await expect(farm.render('click A "data:text/html,<script>"')).rejects.toThrow(
+        "source contains forbidden content"
+      );
+    } finally {
+      await farm.stop();
+    }
+  }, 30000);
+
+  it("rejects javascript: protocol", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+      noSandbox: true,
+    });
+
+    await farm.start();
+
+    try {
+      await expect(farm.render('click A "javascript:alert(1)"')).rejects.toThrow(
+        "source contains forbidden content"
+      );
+    } finally {
+      await farm.stop();
+    }
+  }, 30000);
 });
