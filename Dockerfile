@@ -13,7 +13,7 @@ FROM oven/bun:1.3.3-debian AS base
 WORKDIR /app
 
 # Install D2 CLI for server-side D2 rendering
-RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
     D2_VERSION="v0.7.1" && \
     curl -fsSL "https://github.com/terrastruct/d2/releases/download/${D2_VERSION}/d2-${D2_VERSION}-linux-amd64.tar.gz" -o /tmp/d2.tar.gz && \
     tar -xzf /tmp/d2.tar.gz -C /tmp && \
