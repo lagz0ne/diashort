@@ -6,6 +6,7 @@ import type { Lite } from "@pumped-fn/lite";
 interface CreateResponse {
   shortlink: string;
   url: string;
+  embed: string;
 }
 
 describe("Integration Tests", () => {
@@ -129,6 +130,7 @@ describe("Integration Tests", () => {
       expect(body.shortlink).toBeDefined();
       expect(body.shortlink).toMatch(/^[a-f0-9]{8}$/);
       expect(body.url).toBe(`${baseUrl}/d/${body.shortlink}`);
+      expect(body.embed).toBe(`${baseUrl}/e/${body.shortlink}`);
     });
 
     it("POST /render with d2 source returns shortlink", async () => {
@@ -148,6 +150,7 @@ describe("Integration Tests", () => {
       const body = await res.json() as CreateResponse;
       expect(body.shortlink).toBeDefined();
       expect(body.url).toBe(`${baseUrl}/d/${body.shortlink}`);
+      expect(body.embed).toBe(`${baseUrl}/e/${body.shortlink}`);
     });
 
     it("includes X-Request-Id header in response", async () => {
