@@ -71,11 +71,12 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
-# Mermaid SSR config - opt-in via environment variable
+# Mermaid SSR config
 ENV CHROME_PATH=/opt/chrome/chrome-headless-shell
 ENV MERMAID_DB_PATH=/app/data/mermaid-queue.db
-# SECURITY: noSandbox is opt-in, not default. Container sandboxing provides isolation.
-# Set MERMAID_NO_SANDBOX=true only in properly sandboxed container environments.
+# Chrome sandbox doesn't work in containers without --privileged or special seccomp profiles.
+# Container isolation provides the security boundary instead.
+ENV MERMAID_NO_SANDBOX=true
 
 EXPOSE 3000
 
