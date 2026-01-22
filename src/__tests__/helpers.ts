@@ -2,7 +2,7 @@ import { createScope, type Lite } from "@pumped-fn/lite";
 import { logLevelTag, nodeEnvTag, diagramConfigTag } from "../config/tags";
 import pino from "pino";
 
-export function createTestScope(tags: Lite.Tagged<unknown>[] = []): Lite.Scope {
+export function createTestScope(tags: Lite.Tagged<any>[] = []): Lite.Scope {
   return createScope({
     tags: [
       logLevelTag("error"),
@@ -18,7 +18,7 @@ export function createTestScope(tags: Lite.Tagged<unknown>[] = []): Lite.Scope {
 }
 
 export async function withTestScope<T>(
-  config: { tags?: Lite.Tagged<unknown>[] },
+  config: { tags?: Lite.Tagged<any>[] },
   fn: (scope: Lite.Scope) => Promise<T>
 ): Promise<T> {
   const scope = createTestScope(config.tags ?? []);
