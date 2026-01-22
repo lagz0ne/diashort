@@ -74,9 +74,6 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 # Mermaid SSR config
 ENV CHROME_PATH=/opt/chrome/chrome-headless-shell
 ENV MERMAID_DB_PATH=/app/data/mermaid-queue.db
-# Chrome sandbox doesn't work in containers without --privileged or special seccomp profiles.
-# Container isolation provides the security boundary instead.
-ENV MERMAID_NO_SANDBOX=true
 
 EXPOSE 3000
 

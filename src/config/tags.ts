@@ -184,7 +184,7 @@ export function loadConfigTags(
     dbPath: getEnv(env, "MERMAID_DB_PATH") ?? "./data/mermaid-queue.db",
     poolSize: parseNumber(env, "MERMAID_POOL_SIZE", 2),
     timeout: parseNumber(env, "MERMAID_TIMEOUT", 30000),
-    noSandbox: parseBool(env, "MERMAID_NO_SANDBOX", false),
+    noSandbox: parseBool(env, "MERMAID_NO_SANDBOX", true),
     maxQueueSize: parseNumber(env, "MERMAID_MAX_QUEUE", 1000),
   } : undefined;
 
