@@ -1,23 +1,11 @@
 // src/atoms/mermaid-renderer.ts
-import { atom, tag, tags } from "@pumped-fn/lite";
+import { atom, tags } from "@pumped-fn/lite";
 import { Database } from "bun:sqlite";
 import { createBrowserFarm } from "./browser-farm";
 import { loggerAtom } from "./logger";
+import { mermaidConfigTag } from "../config/tags";
 
-export interface MermaidConfig {
-  executablePath: string;
-  dbPath: string;
-  poolSize?: number;
-  timeout?: number;
-  /** Enable --no-sandbox for CI environments. SECURITY: Only use in containerized/sandboxed environments */
-  noSandbox?: boolean;
-  /** Maximum pending jobs in queue. Rejects new requests when exceeded. Default: 1000 */
-  maxQueueSize?: number;
-}
-
-export const mermaidConfigTag = tag<MermaidConfig>({
-  label: "mermaid-config",
-});
+export type { MermaidConfig } from "../config/tags";
 
 export const mermaidRendererAtom = atom({
   deps: {
