@@ -1,4 +1,4 @@
-import { tag } from "@pumped-fn/lite";
+import { tag, type Lite } from "@pumped-fn/lite";
 import { z } from "zod";
 
 // Schema for validating BASE_URL - must be a valid URL without trailing slash
@@ -23,6 +23,16 @@ export interface DiagramConfig {
   dbPath: string;
   retentionDays: number;
   cleanupIntervalMs: number;
+}
+
+export interface MermaidConfig {
+  executablePath: string;
+  dbPath: string;
+  poolSize?: number;
+  timeout?: number;
+  /** Enable --no-sandbox for containerized environments. SECURITY: Opt-in only */
+  noSandbox?: boolean;
+  maxQueueSize?: number;
 }
 
 export const logLevelTag = tag<LogLevel>({
@@ -62,6 +72,10 @@ export const diagramConfigTag = tag<DiagramConfig>({
     retentionDays: 30,
     cleanupIntervalMs: 86400000, // daily
   },
+});
+
+export const mermaidConfigTag = tag<MermaidConfig>({
+  label: "mermaid-config",
 });
 
 export const requestIdTag = tag<string>({
@@ -163,7 +177,18 @@ export function loadConfigTags(
   const diagramRetentionDays = parseNumber(env, "DIAGRAM_RETENTION_DAYS", 30);
   const cleanupIntervalMs = parseNumber(env, "CLEANUP_INTERVAL_MS", 86400000);
 
-  return [
+  // Mermaid renderer config (optional - only needed for mermaid SSR)
+  const chromePath = getEnv(env, "CHROME_PATH");
+  const mermaidConfig: MermaidConfig | undefined = chromePath ? {
+    executablePath: chromePath,
+    dbPath: getEnv(env, "MERMAID_DB_PATH") ?? "./data/mermaid-queue.db",
+    poolSize: parseNumber(env, "MERMAID_POOL_SIZE", 2),
+    timeout: parseNumber(env, "MERMAID_TIMEOUT", 30000),
+    noSandbox: parseBool(env, "MERMAID_NO_SANDBOX", false),
+    maxQueueSize: parseNumber(env, "MERMAID_MAX_QUEUE", 1000),
+  } : undefined;
+
+  const tags: Lite.Tagged<any>[] = [
     logLevelTag(logLevel),
     nodeEnvTag(nodeEnv),
     serverPortTag(serverPort),
@@ -176,4 +201,11 @@ export function loadConfigTags(
       cleanupIntervalMs,
     }),
   ];
+
+  // Only add mermaid config if Chrome is available
+  if (mermaidConfig) {
+    tags.push(mermaidConfigTag(mermaidConfig));
+  }
+
+  return tags;
 }
