@@ -36,6 +36,10 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Local data directory
 data/
 
+# Claude local state files
+.claude/*.local.md
+.claude/*.local.json
+
 # Test artifacts
 test.png
 *.png

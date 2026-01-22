@@ -366,7 +366,7 @@ export function createBrowserFarm(config: FarmConfig) {
       ];
 
       // Fetch request interception patterns - blocks at network layer BEFORE HTML parser loads resources
-      const fetchPatterns = blockedUrls.map((url) => ({ urlPattern: url, requestStage: "Request" }));
+      const fetchPatterns = blockedUrls.map((url) => ({ urlPattern: url, requestStage: "Request" as const }));
 
       // Handler for new targets - applies blocking BEFORE they can execute
       // With waitForDebuggerOnStart:true, the page is paused until we resume it
@@ -378,9 +378,10 @@ export function createBrowserFarm(config: FarmConfig) {
         try {
           // Get the CDPSession for this specific target (flat protocol)
           const targetSession = await target.createCDPSession();
-          const sessionId = target._targetId;
-          childSessions.set(sessionId, target._targetId);
-          childCdpSessions.set(sessionId, targetSession);
+          // Use target URL as identifier since _targetId is private
+          const targetKey = target.url() || `target-${Date.now()}-${Math.random()}`;
+          childSessions.set(targetKey, targetKey);
+          childCdpSessions.set(targetKey, targetSession);
 
           // Apply blocking rules while page may still be loading
           // Use Network.setBlockedURLs for URL-level blocking
@@ -408,12 +409,13 @@ export function createBrowserFarm(config: FarmConfig) {
 
       // Cleanup tracking when targets are destroyed
       browser.on("targetdestroyed", (target) => {
-        const sessionId = target._targetId;
-        childSessions.delete(sessionId);
-        const session = childCdpSessions.get(sessionId);
+        // Use target URL as identifier (matches what we used in targetcreated)
+        const targetKey = target.url() || "";
+        childSessions.delete(targetKey);
+        const session = childCdpSessions.get(targetKey);
         if (session) {
           session.removeAllListeners();
-          childCdpSessions.delete(sessionId);
+          childCdpSessions.delete(targetKey);
         }
       });
 
