@@ -333,7 +333,7 @@ Response (D2):
   {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345", "embed": "${url.origin}/e/abc12345"}
 
 Response (Mermaid):
-  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345"}
+  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345", "embed": "${url.origin}/e/abc12345"}
 
 Parameters:
   - source: Diagram source code (required)
@@ -346,15 +346,15 @@ Example:
   Open in browser: ${url.origin}/d/abc12345
 
 ### GET /e/:shortlink
-Get raw SVG for embedding (D2 only).
+Get raw SVG for embedding (D2 and Mermaid).
 
 Use in markdown:
   ![Diagram](${url.origin}/e/abc12345)
 
 Query parameters:
-  - theme: "light" (default) or "dark"
+  - theme: "light" (default) or "dark" (D2 only, mermaid uses default theme)
 
-Note: Mermaid diagrams do not support embedding (returns 404).
+Note: Mermaid SSR requires CHROME_PATH to be configured.
 
 ### POST /diff
 Create a side-by-side comparison of two diagrams.
