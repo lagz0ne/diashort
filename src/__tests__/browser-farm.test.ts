@@ -39,4 +39,49 @@ describeWithChrome("BrowserFarm", () => {
     await farm.start();
     await farm.stop();
   });
+
+  it("renders mermaid diagram to SVG", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 1,
+      noSandbox: true, // Required for WSL2/containerized environments
+    });
+
+    await farm.start();
+
+    try {
+      const svg = await farm.render("graph TD; A-->B");
+      expect(svg).toContain("<svg");
+      expect(svg).toContain("</svg>");
+    } finally {
+      await farm.stop();
+    }
+  }, 30000); // Browser rendering can take time
+
+  it("handles concurrent render requests", async () => {
+    const farm = createBrowserFarm({
+      executablePath: CHROME_PATH!,
+      db,
+      poolSize: 2,
+      noSandbox: true, // Required for WSL2/containerized environments
+    });
+
+    await farm.start();
+
+    try {
+      const results = await Promise.all([
+        farm.render("graph TD; A-->B"),
+        farm.render("graph TD; C-->D"),
+        farm.render("graph TD; E-->F"),
+      ]);
+
+      expect(results).toHaveLength(3);
+      results.forEach((svg) => {
+        expect(svg).toContain("<svg");
+      });
+    } finally {
+      await farm.stop();
+    }
+  }, 60000); // Concurrent renders with queue processing
 });

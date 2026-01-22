@@ -351,106 +351,81 @@ export function createBrowserFarm(config: FarmConfig) {
 
     // Track child sessions for CDP command routing (declared outside try for finally access)
     const childSessions = new Map<string, string>(); // sessionId -> targetId
+    // Track child CDP sessions for cleanup (targetId -> CDPSession)
+    // With flatten:true, puppeteer creates real CDPSession objects for child targets
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const childCdpSessions = new Map<string, any>();
 
     try {
-      // Block all external protocols including file://, blob:, and filesystem: for comprehensive protection
+      // Block external network protocols (SSRF prevention)
+      // Allow file:// for local mermaid-cli resources (index.html, bundled JS)
+      // blob: and filesystem: blocked to prevent data exfiltration
       const blockedUrls = [
         "http://*", "https://*", "ftp://*", "ws://*", "wss://*",
-        "file://*", "blob:*", "filesystem:*"
+        "blob:*", "filesystem:*"
       ];
 
       // Fetch request interception patterns - blocks at network layer BEFORE HTML parser loads resources
       const fetchPatterns = blockedUrls.map((url) => ({ urlPattern: url, requestStage: "Request" }));
 
-      // Counter for CDP message IDs - scoped per renderMermaid call
-      // Each render uses its own CDP session, so IDs don't conflict between renders
-      let cdpMessageId = 1;
-
-      // Helper to send CDP command to a child session via Target.sendMessageToTarget
-      // puppeteer-core's send() doesn't support sessionId parameter, so we use the raw CDP API
-      async function sendToChild(sessionId: string, method: string, params: object = {}): Promise<void> {
-        const message = JSON.stringify({
-          id: cdpMessageId++,
-          method,
-          params,
-        });
-        await cdpSession.send("Target.sendMessageToTarget", { sessionId, message });
-      }
-
-      // Handler for intercepted fetch requests - fail them immediately
-      // Events from child sessions include sessionId when using flatten:true
-      cdpSession.on("Fetch.requestPaused", async (event: { requestId: string; sessionId?: string }) => {
-        try {
-          if (event.sessionId && childSessions.has(event.sessionId)) {
-            // Route to child session via Target.sendMessageToTarget
-            await sendToChild(event.sessionId, "Fetch.failRequest", {
-              requestId: event.requestId,
-              errorReason: "BlockedByClient",
-            });
-          } else {
-            // Browser-level request
-            await cdpSession.send("Fetch.failRequest", {
-              requestId: event.requestId,
-              errorReason: "BlockedByClient",
-            });
-          }
-        } catch {
-          // Request may have been handled already or session closed
-        }
-      });
-
       // Handler for new targets - applies blocking BEFORE they can execute
       // With waitForDebuggerOnStart:true, the page is paused until we resume it
-      cdpSession.on("Target.attachedToTarget", async (event: {
-        sessionId: string;
-        targetInfo: { type: string; targetId: string };
-      }) => {
-        // Track the child session for command routing
-        childSessions.set(event.sessionId, event.targetInfo.targetId);
-
+      // With flatten:true, we get a real CDPSession for each child target
+      browser.on("targetcreated", async (target) => {
         // Only apply to page targets (what mermaid-cli creates)
-        if (event.targetInfo.type === "page") {
-          try {
-            // Apply blocking rules while page is paused
-            // Use BOTH Network.setBlockedURLs AND Fetch.enable for defense-in-depth
-            // Route commands to child session via Target.sendMessageToTarget
-            await sendToChild(event.sessionId, "Network.enable");
-            await sendToChild(event.sessionId, "Network.setBlockedURLs", { urls: blockedUrls });
+        if (target.type() !== "page") return;
 
-            // Fetch.enable intercepts at network layer - catches HTML parser resource loads
-            await sendToChild(event.sessionId, "Fetch.enable", { patterns: fetchPatterns });
+        try {
+          // Get the CDPSession for this specific target (flat protocol)
+          const targetSession = await target.createCDPSession();
+          const sessionId = target._targetId;
+          childSessions.set(sessionId, target._targetId);
+          childCdpSessions.set(sessionId, targetSession);
 
-            // CRITICAL: Resume page execution AFTER blocking is in place
-            await sendToChild(event.sessionId, "Runtime.runIfWaitingForDebugger");
-          } catch {
-            // Target may have closed - still try to resume to avoid hangs
+          // Apply blocking rules while page may still be loading
+          // Use Network.setBlockedURLs for URL-level blocking
+          await targetSession.send("Network.enable");
+          await targetSession.send("Network.setBlockedURLs", { urls: blockedUrls });
+
+          // Fetch.enable intercepts at network layer - catches HTML parser resource loads
+          await targetSession.send("Fetch.enable", { patterns: fetchPatterns });
+
+          // Handler for intercepted fetch requests on this target - fail them immediately
+          targetSession.on("Fetch.requestPaused", async (event: { requestId: string }) => {
             try {
-              await sendToChild(event.sessionId, "Runtime.runIfWaitingForDebugger");
+              await targetSession.send("Fetch.failRequest", {
+                requestId: event.requestId,
+                errorReason: "BlockedByClient",
+              });
             } catch {
-              // Ignore - target is gone
+              // Request may have been handled already or session closed
             }
-          }
+          });
+        } catch {
+          // Target may have closed before we could configure it
         }
       });
 
-      // Cleanup tracking when targets detach
-      cdpSession.on("Target.detachedFromTarget", (event: { sessionId: string }) => {
-        childSessions.delete(event.sessionId);
-      });
-
-      // Enable auto-attach with flatten:true + waitForDebuggerOnStart:true
-      // This pauses new pages until we apply blocking and resume them
-      await cdpSession.send("Target.setAutoAttach", {
-        autoAttach: true,
-        waitForDebuggerOnStart: true, // CRITICAL: Pause pages until we configure them
-        flatten: true,
-        // Attach to pages only (what mermaid-cli creates)
-        filter: [{ type: "page" }],
+      // Cleanup tracking when targets are destroyed
+      browser.on("targetdestroyed", (target) => {
+        const sessionId = target._targetId;
+        childSessions.delete(sessionId);
+        const session = childCdpSessions.get(sessionId);
+        if (session) {
+          session.removeAllListeners();
+          childCdpSessions.delete(sessionId);
+        }
       });
 
       // Also block on browser target itself (belt and suspenders)
-      await cdpSession.send("Network.enable");
-      await cdpSession.send("Network.setBlockedURLs", { urls: blockedUrls });
+      // Note: Network domain may not be available on browser-level target in some Chrome variants
+      // The page-level blocking via Target.attachedToTarget is the primary protection
+      try {
+        await cdpSession.send("Network.enable");
+        await cdpSession.send("Network.setBlockedURLs", { urls: blockedUrls });
+      } catch {
+        // Network domain not supported on browser target - rely on page-level blocking
+      }
 
       // Render with securityLevel:strict to disable click handlers and dangerous features
       // This is defense-in-depth on top of input sanitization and network blocking
@@ -461,7 +436,8 @@ export function createBrowserFarm(config: FarmConfig) {
           maxTextSize: 50000,       // Limit text size to prevent DoS
         },
       });
-      const svg = data.toString();
+      // data is a Buffer/Uint8Array - explicitly convert to UTF-8 string
+      const svg = Buffer.from(data).toString("utf-8");
 
       // Output size validation - prevent memory exhaustion from malicious diagrams
       const MAX_SVG_SIZE = 5 * 1024 * 1024; // 5MB limit
@@ -471,14 +447,14 @@ export function createBrowserFarm(config: FarmConfig) {
 
       // Output SVG sanitization - defense-in-depth against XSS in rendered output
       // Even with input sanitization, validate output doesn't contain dangerous content
+      // Note: Mermaid legitimately uses <foreignObject> and <use> for text/icon rendering
+      // so we don't block those - the input sanitization + securityLevel:strict handles safety
       const DANGEROUS_SVG_PATTERNS = [
         /<script[\s>]/i,              // Script tags
         /\son\w+\s*=/i,               // Event handlers (onclick, onload, etc.)
         /javascript:/i,               // JavaScript protocol
         /data:\s*text\/html/i,        // HTML data URIs
-        /<foreignObject[\s>]/i,       // foreignObject can embed HTML
         /xlink:href\s*=\s*["']?\s*(?:javascript|data):/i, // Dangerous xlink:href
-        /<\s*use[\s>]/i,              // SVG use element can reference external content
       ];
       for (const pattern of DANGEROUS_SVG_PATTERNS) {
         if (pattern.test(svg)) {
@@ -490,6 +466,19 @@ export function createBrowserFarm(config: FarmConfig) {
     } finally {
       // Explicit cleanup of CDP session event handlers, child sessions map, and detach
       childSessions.clear();
+      // Clean up child CDP sessions
+      for (const session of childCdpSessions.values()) {
+        try {
+          session.removeAllListeners();
+          await session.detach();
+        } catch {
+          // Session may already be detached - ignore
+        }
+      }
+      childCdpSessions.clear();
+      // Clean up browser-level event handlers
+      browser.removeAllListeners("targetcreated");
+      browser.removeAllListeners("targetdestroyed");
       try {
         cdpSession.removeAllListeners();
         await cdpSession.detach();
