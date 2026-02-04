@@ -218,6 +218,22 @@ docker build -t diashort .
 docker run -p 3000:3000 diashort
 ```
 
+### Persistent storage
+
+Diagrams and diffs are stored in SQLite at `/app/data/`. To persist data across container restarts/redeploys, mount a volume:
+
+```bash
+docker run -p 3000:3000 -v diashort-data:/app/data diashort
+```
+
+Or use docker-compose (volume already configured):
+
+```bash
+docker-compose up -d
+```
+
+**Cloud deployments:** Configure a persistent volume for `/app/data/` in your platform (Fly.io volumes, Railway volumes, etc.). Without this, data is lost on every deploy.
+
 ## License
 
 MIT

@@ -13,4 +13,9 @@ services:
       - CACHE_GC_INTERVAL=60000
       - QUEUE_MAX_CONCURRENT=10
       - QUEUE_MAX_WAITING=50
+    volumes:
+      - diashort-data:/app/data
     restart: unless-stopped
+
+volumes:
+  diashort-data:
