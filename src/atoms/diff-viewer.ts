@@ -51,12 +51,11 @@ const diffStyles = `
     display: flex;
     width: 100vw;
     height: 100vh;
+    flex-direction: row;
   }
 
-  @media (max-width: 768px) {
-    .diff-container {
-      flex-direction: column;
-    }
+  .diff-container.layout-vertical {
+    flex-direction: column;
   }
 
   .diff-panel {
@@ -71,18 +70,17 @@ const diffStyles = `
     border-right: none;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .diff-panel { border-color: #333; }
+  .layout-vertical .diff-panel {
+    border-right: none;
+    border-bottom: 1px solid #ddd;
   }
 
-  @media (max-width: 768px) {
-    .diff-panel {
-      border-right: none;
-      border-bottom: 1px solid #ddd;
-    }
-    .diff-panel:last-child {
-      border-bottom: none;
-    }
+  .layout-vertical .diff-panel:last-child {
+    border-bottom: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .diff-panel { border-color: #333; }
   }
 
   .panel-header {
@@ -155,6 +153,16 @@ const diffStyles = `
 
   @media (prefers-color-scheme: dark) {
     .controls button:hover { background: rgba(255, 255, 255, 0.1); }
+  }
+
+  .controls .separator {
+    width: 1px;
+    background: #ddd;
+    margin: 4px 2px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .controls .separator { background: #555; }
   }
 
   #loading {
@@ -397,7 +405,61 @@ const controlsHtml = `
     <button id="zoom-in" aria-label="Zoom in">+</button>
     <button id="zoom-reset" aria-label="Reset view">&#x21BA;</button>
     <button id="zoom-out" aria-label="Zoom out">&minus;</button>
+    <div class="separator"></div>
+    <button id="layout-toggle" aria-label="Toggle layout">&#x25EB;</button>
   </div>
+`;
+
+const layoutScript = `
+  function getLayoutFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const layout = params.get('layout');
+    return layout === 'vertical' ? 'vertical' : 'horizontal';
+  }
+
+  function setLayoutInUrl(layout) {
+    const url = new URL(window.location.href);
+    if (layout === 'horizontal') {
+      url.searchParams.delete('layout');
+    } else {
+      url.searchParams.set('layout', layout);
+    }
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  function applyLayout(layout) {
+    const container = document.querySelector('.diff-container');
+    const toggleBtn = document.getElementById('layout-toggle');
+
+    if (layout === 'vertical') {
+      container.classList.add('layout-vertical');
+      toggleBtn.innerHTML = '&#x25EB;'; // vertical split icon
+      toggleBtn.setAttribute('aria-label', 'Switch to side-by-side');
+    } else {
+      container.classList.remove('layout-vertical');
+      toggleBtn.innerHTML = '&#x2B12;'; // horizontal split icon
+      toggleBtn.setAttribute('aria-label', 'Switch to top-to-bottom');
+    }
+
+    // Recalculate viewport after layout change
+    if (typeof initSyncedViewport === 'function') {
+      setTimeout(initSyncedViewport, 50);
+    }
+  }
+
+  function toggleLayout() {
+    const container = document.querySelector('.diff-container');
+    const isVertical = container.classList.contains('layout-vertical');
+    const newLayout = isVertical ? 'horizontal' : 'vertical';
+    applyLayout(newLayout);
+    setLayoutInUrl(newLayout);
+  }
+
+  function initLayout() {
+    const layout = getLayoutFromUrl();
+    applyLayout(layout);
+    document.getElementById('layout-toggle').addEventListener('click', toggleLayout);
+  }
 `;
 
 export const diffViewerAtom = atom({
@@ -436,6 +498,7 @@ export const diffViewerAtom = atom({
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <script>
     ${syncedViewportScript}
+    ${layoutScript}
 
     const beforeSource = \`${escapedBefore}\`;
     const afterSource = \`${escapedAfter}\`;
@@ -471,6 +534,7 @@ export const diffViewerAtom = atom({
       renderBoth();
     });
 
+    initLayout();
     renderBoth();
   </script>
 </body>
@@ -507,6 +571,7 @@ export const diffViewerAtom = atom({
 
   <script>
     ${syncedViewportScript}
+    ${layoutScript}
 
     const beforeLightSvg = \`${escapedBeforeLight}\`;
     const beforeDarkSvg = \`${escapedBeforeDark}\`;
@@ -529,6 +594,7 @@ export const diffViewerAtom = atom({
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
 
+    initLayout();
     render();
   </script>
 </body>

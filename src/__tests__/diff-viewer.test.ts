@@ -45,4 +45,50 @@ describe("DiffViewer", () => {
 
     await scope.dispose();
   });
+
+  it("includes layout toggle controls in mermaid diff", async () => {
+    const scope = createScope({ tags: [] });
+    const viewer = await scope.resolve(diffViewerAtom);
+
+    const html = viewer.generateMermaidDiff({
+      before: "graph TD; A-->B;",
+      after: "graph TD; A-->B-->C;",
+      shortlink: "abc12345",
+    });
+
+    // Layout toggle button
+    expect(html).toContain('id="layout-toggle"');
+    // Layout functions
+    expect(html).toContain("getLayoutFromUrl");
+    expect(html).toContain("toggleLayout");
+    expect(html).toContain("initLayout");
+    // CSS for vertical layout
+    expect(html).toContain("layout-vertical");
+
+    await scope.dispose();
+  });
+
+  it("includes layout toggle controls in D2 diff", async () => {
+    const scope = createScope({ tags: [] });
+    const viewer = await scope.resolve(diffViewerAtom);
+
+    const html = viewer.generateD2Diff({
+      beforeLightSvg: "<svg>before-light</svg>",
+      beforeDarkSvg: "<svg>before-dark</svg>",
+      afterLightSvg: "<svg>after-light</svg>",
+      afterDarkSvg: "<svg>after-dark</svg>",
+      shortlink: "xyz78901",
+    });
+
+    // Layout toggle button
+    expect(html).toContain('id="layout-toggle"');
+    // Layout functions
+    expect(html).toContain("getLayoutFromUrl");
+    expect(html).toContain("toggleLayout");
+    expect(html).toContain("initLayout");
+    // CSS for vertical layout
+    expect(html).toContain("layout-vertical");
+
+    await scope.dispose();
+  });
 });
