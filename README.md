@@ -2,6 +2,16 @@
 
 Diagram shortlink service - render Mermaid and D2 diagrams to images and get shareable shortlinks.
 
+## Usage
+
+Visit the root URL to see interactive API documentation:
+
+```bash
+curl https://diashort.apps.quickable.co/
+```
+
+Or open in browser: https://diashort.apps.quickable.co/
+
 ## Features
 
 - Render Mermaid and D2 diagrams to SVG or PNG
@@ -112,6 +122,44 @@ Render a diagram and convert to terminal output via chafa.
 Retrieve a rendered diagram by shortlink.
 
 **Response:** The rendered image (SVG or PNG)
+
+### POST /diff
+
+Create a side-by-side diff view of two diagrams.
+
+**Request:**
+```json
+{
+  "format": "mermaid",
+  "before": "graph TD; A-->B;",
+  "after": "graph TD; A-->B-->C;"
+}
+```
+
+**Response:**
+```json
+{
+  "shortlink": "abc123",
+  "url": "/diff/abc123"
+}
+```
+
+### GET /diff/:shortlink
+
+View the diff in an interactive HTML viewer with:
+- Synced pan/zoom across both panels
+- Toggle between side-by-side and top-to-bottom layouts
+
+**Query Parameters:**
+| Parameter | Values | Default | Description |
+|-----------|--------|---------|-------------|
+| `layout` | `horizontal`, `vertical` | `horizontal` | Layout orientation |
+
+**Examples:**
+- `/diff/abc123` - side-by-side (horizontal)
+- `/diff/abc123?layout=vertical` - top-to-bottom (vertical)
+
+The layout can also be toggled via the button in the viewer controls.
 
 ### GET /health
 

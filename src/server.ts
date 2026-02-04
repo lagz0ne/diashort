@@ -378,6 +378,12 @@ View the side-by-side comparison with synced zoom/pan.
 Example:
   Open in browser: ${url.origin}/diff/xyz78901
 
+Query parameters:
+  - layout: "horizontal" (default, side-by-side) or "vertical" (top-to-bottom)
+
+Example with vertical layout:
+  ${url.origin}/diff/xyz78901?layout=vertical
+
 ### GET /health
 Health check endpoint.
 
