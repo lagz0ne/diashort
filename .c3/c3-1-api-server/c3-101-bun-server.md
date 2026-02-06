@@ -16,17 +16,29 @@ HTTP entry point for the API. Uses `Bun.serve()` with manual routing, optional B
 
 **Provides:**
 - HTTP server on configurable port (default 3000)
-- Route handlers for `/render`, `/d/:id`, `/jobs/:id`, `/render/terminal`, `/health`
-- Optional Basic Auth enforcement
+- Route handlers for `/render`, `/d/:id`, `/e/:id`, `/diff`, `/diff/:id`, `/health`, `/`
+- Optional Basic Auth enforcement (POST endpoints only)
 - Request ID generation and propagation
 - Centralized error-to-HTTP-response mapping
 - Graceful shutdown on SIGTERM/SIGINT
+- Cleanup interval for expired diagrams and diffs
 
 **Expects:**
 - Environment configuration via tags (port, auth settings)
 - DI scope with all atoms resolved at startup
-- Browser pool warmed up before accepting requests
-- Job processor running for async rendering
+- Optional mermaid renderer resolved for SSR check
+
+## Routes
+
+| Method | Path | Auth | Handler |
+|--------|------|------|---------|
+| POST | `/render` | Yes (if enabled) | Create Flow (c3-114) |
+| POST | `/diff` | Yes (if enabled) | Create Diff Flow (c3-127) |
+| GET | `/d/:shortlink` | No | View Flow (c3-116) |
+| GET | `/e/:shortlink` | No | Embed Flow (c3-123) |
+| GET | `/diff/:shortlink` | No | View Diff Flow (c3-127) |
+| GET | `/health` | No | Health check |
+| GET | `/` | No | Usage documentation |
 
 ## Edge Cases
 
@@ -36,16 +48,15 @@ HTTP entry point for the API. Uses `Bun.serve()` with manual routing, optional B
 | Invalid credentials | 401 Unauthorized |
 | Unknown route | 404 Not Found |
 | JSON parse error | 400 Bad Request |
-| Queue full | 429 Too Many Requests + `Retry-After: 5` |
-| Render failure | 500 Internal Server Error |
+| Render failure | 500/503/504 depending on type |
 | SIGTERM received | Stop accepting, close scope, exit 0 |
 
 ## References
 
-- `startServer()` - `src/server.ts:130`
-- `Bun.serve({ fetch })` - `src/server.ts:158`
-- `mapErrorToResponse()` - `src/server.ts:65`
-- `checkBasicAuth()` - `src/server.ts:29`
+- `startServer()` - `src/server.ts:129`
+- `Bun.serve({ fetch })` - `src/server.ts:163`
+- `mapErrorToResponse()` - `src/server.ts:64`
+- `checkBasicAuth()` - `src/server.ts:28`
 
 ## Testing Strategy
 

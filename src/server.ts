@@ -2,12 +2,12 @@ import { createScope, type Lite, atom, tags } from "@pumped-fn/lite";
 import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requestIdTag, diagramConfigTag, requestOriginTag } from "./config/tags";
 import { optionalMermaidRendererAtom } from "./atoms/mermaid-renderer";
 import { AuthError } from "./extensions/auth";
-import { createFlow, ValidationError } from "./flows/create";
+import { createFlow, ValidationError, ConflictError } from "./flows/create";
 import { viewFlow, NotFoundError } from "./flows/view";
 import { embedFlow, EmbedNotSupportedError, EmbedRenderError } from "./flows/embed";
 import { createDiffFlow, viewDiffFlow, DiffValidationError, DiffNotFoundError } from "./flows/diff";
 import { loggerAtom } from "./atoms/logger";
-import { diagramStoreAtom } from "./atoms/diagram-store";
+import { diagramStoreAtom, DiagramNotFoundError } from "./atoms/diagram-store";
 import { diffStoreAtom } from "./atoms/diff-store";
 
 const serverConfigAtom = atom({
@@ -69,6 +69,13 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
+  if (error instanceof ConflictError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 409,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   if (error instanceof ValidationError) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
@@ -84,7 +91,7 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
-  if (error instanceof NotFoundError) {
+  if (error instanceof NotFoundError || error instanceof DiagramNotFoundError) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
@@ -183,7 +190,11 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
               rawInput: body,
             });
 
-            const responseBody: Record<string, string> = { shortlink: result.shortlink, url: result.url };
+            const responseBody: Record<string, string> = {
+              shortlink: result.shortlink,
+              url: result.url,
+              version: result.version,
+            };
             if (result.embed) {
               responseBody.embed = result.embed;
             }
@@ -223,15 +234,29 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
         }
 
         if (req.method === "GET" && url.pathname.startsWith("/d/")) {
-          const shortlink = url.pathname.slice(3);
+          const pathAfter = url.pathname.slice(3); // e.g. "abc123" or "abc123/v1"
+          const slashIndex = pathAfter.indexOf("/");
+          const shortlink = slashIndex === -1 ? pathAfter : pathAfter.slice(0, slashIndex);
+          const versionName = slashIndex === -1 ? undefined : pathAfter.slice(slashIndex + 1);
 
           const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
 
           try {
             const result = await ctx.exec({
               flow: viewFlow,
-              input: { shortlink },
+              input: { shortlink, versionName },
             });
+
+            if (result.redirect) {
+              return new Response(null, {
+                status: 302,
+                headers: {
+                  "Location": result.redirect,
+                  "Cache-Control": "no-cache",
+                  "X-Request-Id": requestId,
+                },
+              });
+            }
 
             return new Response(result.html, {
               status: 200,
@@ -247,7 +272,10 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
         }
 
         if (req.method === "GET" && url.pathname.startsWith("/e/")) {
-          const shortlink = url.pathname.slice(3);
+          const pathAfter = url.pathname.slice(3);
+          const slashIndex = pathAfter.indexOf("/");
+          const shortlink = slashIndex === -1 ? pathAfter : pathAfter.slice(0, slashIndex);
+          const versionName = slashIndex === -1 ? undefined : pathAfter.slice(slashIndex + 1);
           const theme = url.searchParams.get("theme") === "dark" ? "dark" : "light";
 
           const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
@@ -255,8 +283,19 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
           try {
             const result = await ctx.exec({
               flow: embedFlow,
-              input: { shortlink, theme },
+              input: { shortlink, versionName, theme },
             });
+
+            if (result.redirect) {
+              return new Response(null, {
+                status: 302,
+                headers: {
+                  "Location": result.redirect,
+                  "Cache-Control": "no-cache",
+                  "X-Request-Id": requestId,
+                },
+              });
+            }
 
             return new Response(result.svg, {
               status: 200,
@@ -295,6 +334,55 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
           }
         }
 
+        // Version API endpoints (no auth required)
+        if (req.method === "GET" && url.pathname.startsWith("/api/d/")) {
+          const pathAfter = url.pathname.slice(7); // after "/api/d/"
+
+          // /api/d/:shortlink/versions/:versionName/source
+          const sourceMatch = pathAfter.match(/^([^/]+)\/versions\/([^/]+)\/source$/);
+          if (sourceMatch) {
+            const shortlink = sourceMatch[1]!;
+            const versionName = sourceMatch[2]!;
+            const versionData = diagramStore.getVersionSource(shortlink, versionName);
+            if (!versionData) {
+              return new Response(JSON.stringify({ error: "Version not found" }), {
+                status: 404,
+                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+              });
+            }
+            return new Response(JSON.stringify({ source: versionData.source, format: versionData.format }), {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Request-Id": requestId,
+                "Cache-Control": "public, max-age=31536000, immutable",
+              },
+            });
+          }
+
+          // /api/d/:shortlink/versions
+          const versionsMatch = pathAfter.match(/^([^/]+)\/versions$/);
+          if (versionsMatch) {
+            const shortlink = versionsMatch[1]!;
+            const diagram = diagramStore.get(shortlink);
+            if (!diagram) {
+              return new Response(JSON.stringify({ error: "Diagram not found" }), {
+                status: 404,
+                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+              });
+            }
+            const versions = diagramStore.listVersions(shortlink);
+            return new Response(JSON.stringify({ shortlink, format: diagram.format, versions }), {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Request-Id": requestId,
+                "Cache-Control": "no-cache",
+              },
+            });
+          }
+        }
+
         if (req.method === "GET" && url.pathname === "/health") {
           return new Response(JSON.stringify({ status: "ok" }), {
             status: 200,
@@ -303,64 +391,85 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
         }
 
         if (req.method === "GET" && url.pathname === "/") {
-          const authNote = authConfig.enabled
-            ? `Authentication is ENABLED. Include -u "username:password" in requests.`
-            : `Authentication is DISABLED. No credentials required.`;
-          const curlAuth = authConfig.enabled ? `\n    -u "username:password" \\` : "";
-
           const usage = `# Diashort - Diagram Shortlink Service
 
 Stores Mermaid or D2 diagram source and returns a shareable shortlink.
-Diagrams render client-side in the browser.
-
-## Authentication
-
-${authNote}
-
-To enable: Set AUTH_ENABLED=true, AUTH_USER, and AUTH_PASS environment variables.
+Diagrams render client-side in the browser. Supports multiple versions per shortlink.
 
 ## Endpoints
 
 ### POST /render
-Submit a diagram for storage.
+Submit a diagram for storage. Optionally add a version to an existing shortlink.
 
-Request:
-  curl -X POST ${url.origin}/render \\${curlAuth}
+Request (new diagram):
+  curl -X POST ${url.origin}/render \\
     -H "Content-Type: application/json" \\
     -d '{"source": "A -> B -> C", "format": "d2"}'
 
-Response (D2):
-  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345", "embed": "${url.origin}/e/abc12345"}
+Response:
+  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345", "embed": "${url.origin}/e/abc12345", "version": "v1"}
 
-Response (Mermaid):
-  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345", "embed": "${url.origin}/e/abc12345"}
+Request (add version to existing):
+  curl -X POST ${url.origin}/render \\
+    -H "Content-Type: application/json" \\
+    -d '{"source": "A -> B -> C -> D", "format": "d2", "shortlink": "abc12345"}'
+
+Response:
+  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345/v2", "embed": "${url.origin}/e/abc12345/v2", "version": "v2"}
 
 Parameters:
   - source: Diagram source code (required)
   - format: "mermaid" or "d2" (required)
+  - shortlink: Existing shortlink to add version to (optional)
+  - version: Custom version name (optional, requires shortlink)
+
+Version naming:
+  - Auto-generated as v1, v2, etc. when not specified
+  - Custom names must start with a letter (e.g. "draft-1", "final")
+  - Names matching vN (e.g. v1, v2) are reserved for auto-naming
+  - Versions are immutable once created (409 on duplicate)
 
 ### GET /d/:shortlink
-View the diagram (returns HTML page with interactive viewer).
+Redirects (302) to the latest version: /d/:shortlink/:latestVersion
+
+### GET /d/:shortlink/:version
+View a specific version (returns HTML page with interactive viewer).
+Includes version picker and compare overlay when multiple versions exist.
 
 Example:
-  Open in browser: ${url.origin}/d/abc12345
+  Open in browser: ${url.origin}/d/abc12345/v1
 
 ### GET /e/:shortlink
-Get raw SVG for embedding (D2 and Mermaid).
+Redirects (302) to the latest version embed.
+
+### GET /e/:shortlink/:version
+Get raw SVG for a specific version (D2 and Mermaid).
 
 Use in markdown:
-  ![Diagram](${url.origin}/e/abc12345)
+  ![Diagram](${url.origin}/e/abc12345/v1)
 
 Query parameters:
   - theme: "light" (default) or "dark" (D2 only, mermaid uses default theme)
 
 Note: Mermaid SSR requires CHROME_PATH to be configured.
 
+### GET /api/d/:shortlink/versions
+List all versions of a diagram.
+
+Response:
+  {"shortlink": "abc12345", "format": "d2", "versions": [{"name": "v1", "createdAt": 1707177600000, "auto": true}]}
+
+### GET /api/d/:shortlink/versions/:version/source
+Get the raw source of a specific version.
+
+Response:
+  {"source": "A -> B -> C", "format": "d2"}
+
 ### POST /diff
 Create a side-by-side comparison of two diagrams.
 
 Request:
-  curl -X POST ${url.origin}/diff \\${curlAuth}
+  curl -X POST ${url.origin}/diff \\
     -H "Content-Type: application/json" \\
     -d '{"format": "mermaid", "before": "graph TD; A-->B;", "after": "graph TD; A-->B-->C;"}'
 

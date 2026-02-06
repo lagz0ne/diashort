@@ -10,7 +10,7 @@ summary: Validate input, store diagram source, return shortlink
 
 # Create Flow
 
-Validates diagram input, stores source code in SQLite, and returns a shortlink for viewing.
+Validates diagram input, stores source code in SQLite, and returns a shortlink for viewing and embedding.
 
 ## Dependencies
 
@@ -32,7 +32,7 @@ sequenceDiagram
     Flow->>Flow: parseInput(body)
     Flow->>Store: create(source, format)
     Store-->>Flow: shortlink
-    Flow-->>-Client: {shortlink, url}
+    Flow-->>-Client: {shortlink, url, embed}
 ```
 
 ## Input/Output
@@ -49,14 +49,16 @@ interface CreateInput {
 ```typescript
 interface CreateResult {
   shortlink: string;  // 8-char UUID
-  url: string;        // Full URL to view page
+  url: string;        // Full URL to view page (/d/:id)
+  embed: string;      // Full URL to embed SVG (/e/:id)
 }
 ```
 
 ## References
 
-- `createFlow` - `src/flows/create.ts`
-- `parseCreateInput()` - `src/flows/create.ts`
+- `createFlow` - `src/flows/create.ts:47`
+- `parseCreateInput()` - `src/flows/create.ts:25`
+- `ValidationError` - `src/flows/create.ts:17`
 
 ## Testing Strategy
 

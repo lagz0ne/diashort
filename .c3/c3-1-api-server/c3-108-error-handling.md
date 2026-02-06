@@ -24,32 +24,34 @@ Establishes the pattern for domain errors. Each error class has a corresponding 
 
 ## Error Classes
 
-| Class | Status | When Used |
-|-------|--------|-----------|
-| `ValidationError` | 400 | Invalid input (missing fields, wrong format) |
-| `AuthError` | 401 | Missing/invalid credentials |
-| `NotFoundError` | 404 | Shortlink not in cache |
-| `JobNotFoundError` | 404 | Job ID not in database |
-| `BackpressureError` | 429 | Queue full, retry later |
-| `RenderError` | 500 | External tool failure (mmdc, d2) |
-| `MermaidRenderError` | 500 | Mermaid-specific render failure |
-| `ChafaError` | 500 | Terminal renderer failure |
+| Class | Status | When Used | Location |
+|-------|--------|-----------|----------|
+| `ValidationError` | 400 | Invalid input (missing fields, wrong format) | `src/flows/create.ts` |
+| `AuthError` | 401 | Missing/invalid credentials | `src/extensions/auth.ts` |
+| `NotFoundError` | 404 | Diagram shortlink not found | `src/flows/view.ts` |
+| `EmbedNotSupportedError` | 404 | Embed requested for unsupported format/config | `src/flows/embed.ts` |
+| `EmbedRenderError` | dynamic | Render failure during embed (500/503/504) | `src/flows/embed.ts` |
+| `DiffValidationError` | 400 | Invalid diff input (missing fields, bad syntax) | `src/flows/diff.ts` |
+| `DiffNotFoundError` | 404 | Diff shortlink not found | `src/flows/diff.ts` |
 
 ## Applies To
 
 - **Bun Server (c3-101):** `mapErrorToResponse()` handles all thrown errors
-- **All Flows:** Throw typed errors for business logic failures
-- **Renderer (c3-109):** Wraps external tool failures in `RenderError`
-- **Job Store (c3-112):** Returns null instead of throwing (caller throws `JobNotFoundError`)
+- **Create Flow (c3-114):** Throws `ValidationError` for bad input
+- **View Flow (c3-116):** Throws `NotFoundError` on missing diagram
+- **Embed Flow (c3-123):** Throws `EmbedNotSupportedError`, `EmbedRenderError`
+- **Diff Flow (c3-127):** Throws `DiffValidationError`, `DiffNotFoundError`
 
 ## References
 
-- `mapErrorToResponse()` - `src/server.ts:65`
-- `ValidationError` - `src/flows/render.ts:23`
-- `NotFoundError` - `src/flows/retrieve.ts:5`
-- `BackpressureError` - `src/atoms/queue.ts:6`
-- `RenderError` - `src/atoms/renderer.ts:9`
-- `AuthError` - `src/extensions/auth.ts`
+- `mapErrorToResponse()` - `src/server.ts:64`
+- `ValidationError` - `src/flows/create.ts:17`
+- `NotFoundError` - `src/flows/view.ts:8`
+- `AuthError` - `src/extensions/auth.ts:1`
+- `EmbedNotSupportedError` - `src/flows/embed.ts:18`
+- `EmbedRenderError` - `src/flows/embed.ts:26`
+- `DiffValidationError` - `src/flows/diff.ts:9`
+- `DiffNotFoundError` - `src/flows/diff.ts:17`
 
 ## Testing Strategy
 

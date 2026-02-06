@@ -1,6 +1,6 @@
 import { flow } from "@pumped-fn/lite";
 import { diagramStoreAtom } from "../atoms/diagram-store";
-import { htmlGeneratorAtom } from "../atoms/html-generator";
+import { htmlGeneratorAtom, type VersionInfo } from "../atoms/html-generator";
 import { d2RendererAtom } from "../atoms/d2-renderer";
 import { loggerAtom } from "../atoms/logger";
 import { baseUrlTag, requestOriginTag } from "../config/tags";
@@ -15,11 +15,13 @@ export class NotFoundError extends Error {
 
 export interface ViewInput {
   shortlink: string;
+  versionName?: string;
 }
 
 export interface ViewOutput {
   html: string;
   contentType: "text/html";
+  redirect?: string;
 }
 
 function parseViewInput(input: unknown): ViewInput {
@@ -33,7 +35,12 @@ function parseViewInput(input: unknown): ViewInput {
     throw new NotFoundError("shortlink is required");
   }
 
-  return { shortlink: obj.shortlink };
+  const result: ViewInput = { shortlink: obj.shortlink };
+  if (typeof obj.versionName === "string" && obj.versionName.trim() !== "") {
+    result.versionName = obj.versionName;
+  }
+
+  return result;
 }
 
 export const viewFlow = flow({
@@ -48,40 +55,64 @@ export const viewFlow = flow({
   factory: async (ctx, { diagramStore, htmlGenerator, d2Renderer, logger }): Promise<ViewOutput> => {
     const { input } = ctx;
 
-    // Get base URL for embed link
     const configuredBaseUrl = ctx.data.seekTag(baseUrlTag);
     const requestOrigin = ctx.data.seekTag(requestOriginTag) ?? "";
     const baseUrl = configuredBaseUrl || requestOrigin;
 
-    logger.debug({ shortlink: input.shortlink }, "Viewing diagram");
+    logger.debug({ shortlink: input.shortlink, versionName: input.versionName }, "Viewing diagram");
 
+    // Check diagram exists
     const diagram = diagramStore.get(input.shortlink);
-
     if (!diagram) {
       logger.debug({ shortlink: input.shortlink }, "Diagram not found");
       throw new NotFoundError("Diagram not found");
     }
 
+    // If no version specified, redirect to latest
+    if (!input.versionName) {
+      const latestVersion = diagramStore.getLatestVersionName(input.shortlink);
+      if (!latestVersion) {
+        throw new NotFoundError("Diagram not found");
+      }
+      return {
+        html: "",
+        contentType: "text/html",
+        redirect: `/d/${input.shortlink}/${latestVersion}`,
+      };
+    }
+
+    // Serve specific version
+    const versionData = diagramStore.getVersionSource(input.shortlink, input.versionName);
+    if (!versionData) {
+      throw new NotFoundError("Version not found");
+    }
+
     // Update access time for retention
     diagramStore.touch(input.shortlink);
 
+    const hasMultipleVersions = diagramStore.hasMultipleVersions(input.shortlink);
+    const versionInfo: VersionInfo = {
+      shortlink: input.shortlink,
+      currentVersion: input.versionName,
+      versionsApiUrl: `/api/d/${input.shortlink}/versions`,
+      hasMultipleVersions,
+      format: versionData.format,
+    };
+
     let html: string;
 
-    if (diagram.format === "d2") {
-      // Pre-render D2 server-side for both themes
+    if (versionData.format === "d2") {
       const [lightSvg, darkSvg] = await Promise.all([
-        d2Renderer.render(diagram.source, "light"),
-        d2Renderer.render(diagram.source, "dark"),
+        d2Renderer.render(versionData.source, "light"),
+        d2Renderer.render(versionData.source, "dark"),
       ]);
 
-      // Include embed URL for OpenGraph tags
-      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}` : undefined;
-      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl });
-      logger.debug({ shortlink: input.shortlink }, "Generated D2 HTML page with pre-rendered SVG");
+      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}/${input.versionName}` : undefined;
+      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl, versionInfo });
+      logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated D2 HTML page");
     } else {
-      // Mermaid renders client-side
-      html = htmlGenerator.generateMermaid(diagram.source, input.shortlink);
-      logger.debug({ shortlink: input.shortlink }, "Generated Mermaid HTML page");
+      html = htmlGenerator.generateMermaid(versionData.source, input.shortlink, { versionInfo });
+      logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated Mermaid HTML page");
     }
 
     return {

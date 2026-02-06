@@ -2,10 +2,19 @@ import { atom } from "@pumped-fn/lite";
 
 export interface HTMLGeneratorOptions {
   embedUrl?: string;
+  versionInfo?: VersionInfo;
+}
+
+export interface VersionInfo {
+  shortlink: string;
+  currentVersion: string;
+  versionsApiUrl: string;
+  hasMultipleVersions: boolean;
+  format: "mermaid" | "d2";
 }
 
 export interface HTMLGenerator {
-  generateMermaid(source: string, shortlink: string): string;
+  generateMermaid(source: string, shortlink: string, options?: HTMLGeneratorOptions): string;
   generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string;
 }
 
@@ -94,6 +103,7 @@ const baseStyles = `
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
       z-index: 1000;
+      align-items: center;
     }
     html[data-theme="dark"] .controls { background: rgba(40, 40, 40, 0.9); }
     .controls button {
@@ -125,24 +135,153 @@ const baseStyles = `
       margin: 4px 2px;
     }
     html[data-theme="dark"] .controls .separator { background: #555; }
+    .controls select {
+      height: 32px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0 8px;
+      font-size: 13px;
+      background: transparent;
+      color: #333;
+      cursor: pointer;
+    }
+    html[data-theme="dark"] .controls select { border-color: #555; color: #eee; background: #333; }
     @media (pointer: coarse) {
       .controls button { width: 44px; height: 44px; }
+      .controls select { height: 44px; }
     }
     @media (prefers-reduced-motion: reduce) {
       .controls button { transition: none; }
     }
 `;
 
-const controlsHtml = `
+const versionStyles = `
+    .compare-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 2000;
+      display: none;
+      flex-direction: column;
+    }
+    .compare-overlay.active { display: flex; }
+    .compare-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      flex-shrink: 0;
+    }
+    html[data-theme="dark"] .compare-header { background: #222; border-color: #444; }
+    .compare-header label { font-size: 13px; font-weight: 600; color: #555; }
+    html[data-theme="dark"] .compare-header label { color: #aaa; }
+    .compare-header select {
+      height: 32px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0 8px;
+      font-size: 13px;
+      background: #fff;
+      color: #333;
+    }
+    html[data-theme="dark"] .compare-header select { border-color: #555; background: #333; color: #eee; }
+    .compare-header .compare-close {
+      margin-left: auto;
+      width: 32px; height: 32px;
+      border: none; background: transparent;
+      cursor: pointer; font-size: 20px; color: #666;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .compare-header .compare-close:hover { background: rgba(0,0,0,0.1); }
+    html[data-theme="dark"] .compare-header .compare-close { color: #ccc; }
+    html[data-theme="dark"] .compare-header .compare-close:hover { background: rgba(255,255,255,0.1); }
+    .compare-panels {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    .compare-panel {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+    }
+    .compare-panel.dragging { cursor: grabbing; }
+    .compare-panel:first-child { border-right: 1px solid #444; }
+    .compare-panel-label {
+      position: absolute;
+      top: 8px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 2px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .compare-panel svg {
+      transform-origin: 0 0;
+      position: absolute;
+      top: 0; left: 0;
+      user-select: none;
+    }
+    .compare-panel .compare-loading {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #999;
+      font-size: 14px;
+    }
+`;
+
+function buildControlsHtml(versionInfo?: VersionInfo): string {
+  const versionControls = versionInfo?.hasMultipleVersions
+    ? `
+    <select id="version-picker" aria-label="Select version"></select>
+    <button id="compare-btn" aria-label="Compare versions" title="Compare versions">&#x2194;</button>
+    <div class="separator"></div>`
+    : "";
+
+  return `
   <div class="controls">
+    ${versionControls}
     <button id="zoom-in" aria-label="Zoom in">+</button>
     <button id="zoom-reset" aria-label="Reset view">&#x21BA;</button>
     <button id="zoom-out" aria-label="Zoom out">&minus;</button>
     <div class="separator"></div>
     <button id="select-toggle" aria-label="Enable text selection">T</button>
     <button id="theme-toggle" aria-label="Toggle dark mode">&#x263E;</button>
-  </div>
-`;
+  </div>`;
+}
+
+function buildCompareOverlayHtml(): string {
+  return `
+  <div id="compare-overlay" class="compare-overlay">
+    <div class="compare-header">
+      <label>From:</label>
+      <select id="compare-from"></select>
+      <label>To:</label>
+      <select id="compare-to"></select>
+      <button class="compare-close" id="compare-close" aria-label="Close comparison">&times;</button>
+    </div>
+    <div class="compare-panels">
+      <div class="compare-panel" id="compare-panel-from">
+        <div class="compare-panel-label" id="compare-label-from">From</div>
+        <div class="compare-loading">Select versions to compare</div>
+      </div>
+      <div class="compare-panel" id="compare-panel-to">
+        <div class="compare-panel-label" id="compare-label-to">To</div>
+        <div class="compare-loading">Select versions to compare</div>
+      </div>
+    </div>
+  </div>`;
+}
 
 const viewportScript = `
   const viewport = {
@@ -350,12 +489,173 @@ const viewportScript = `
   }
 `;
 
+function buildVersionScript(versionInfo: VersionInfo): string {
+  return `
+    // Version picker + compare overlay
+    const versionShortlink = '${versionInfo.shortlink}';
+    const currentVersion = '${versionInfo.currentVersion}';
+    const versionsApiUrl = '${versionInfo.versionsApiUrl}';
+    const diagramFormat = '${versionInfo.format}';
+    let versionsList = [];
+
+    async function loadVersions() {
+      try {
+        const res = await fetch(versionsApiUrl);
+        const data = await res.json();
+        versionsList = data.versions || [];
+        populateVersionPicker();
+        populateCompareDropdowns();
+      } catch (e) { console.error('Failed to load versions', e); }
+    }
+
+    function populateVersionPicker() {
+      const picker = document.getElementById('version-picker');
+      if (!picker) return;
+      picker.innerHTML = '';
+      versionsList.forEach(function(v) {
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = v.name;
+        if (v.name === currentVersion) opt.selected = true;
+        picker.appendChild(opt);
+      });
+      picker.addEventListener('change', function() {
+        window.location.href = '/d/' + versionShortlink + '/' + this.value;
+      });
+    }
+
+    function populateCompareDropdowns() {
+      var fromSel = document.getElementById('compare-from');
+      var toSel = document.getElementById('compare-to');
+      if (!fromSel || !toSel) return;
+      [fromSel, toSel].forEach(function(sel) {
+        sel.innerHTML = '<option value="">-- select --</option>';
+        versionsList.forEach(function(v) {
+          var opt = document.createElement('option');
+          opt.value = v.name;
+          opt.textContent = v.name;
+          sel.appendChild(opt);
+        });
+      });
+    }
+
+    // Compare overlay
+    var compareOverlay = document.getElementById('compare-overlay');
+    var compareBtn = document.getElementById('compare-btn');
+    var compareClose = document.getElementById('compare-close');
+
+    var compareViewport = { scale: 1, translateX: 0, translateY: 0 };
+    var compareDragging = false;
+    var compareLastX = 0, compareLastY = 0;
+
+    function applyCompareTransform() {
+      var panels = document.querySelectorAll('.compare-panel svg');
+      panels.forEach(function(svg) {
+        svg.style.transform = 'translate(' + compareViewport.translateX + 'px, ' + compareViewport.translateY + 'px) scale(' + compareViewport.scale + ')';
+      });
+    }
+
+    if (compareBtn) {
+      compareBtn.addEventListener('click', function() {
+        compareOverlay.classList.add('active');
+      });
+    }
+    if (compareClose) {
+      compareClose.addEventListener('click', function() {
+        compareOverlay.classList.remove('active');
+      });
+    }
+
+    // Synced pan/zoom on compare panels
+    document.querySelectorAll('.compare-panel').forEach(function(panel) {
+      panel.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var factor = e.deltaY > 0 ? 1/1.2 : 1.2;
+        var newScale = Math.max(0.1, Math.min(5, compareViewport.scale * factor));
+        var diff = newScale / compareViewport.scale;
+        var rect = panel.getBoundingClientRect();
+        var cx = e.clientX - rect.left;
+        var cy = e.clientY - rect.top;
+        compareViewport.translateX = cx - (cx - compareViewport.translateX) * diff;
+        compareViewport.translateY = cy - (cy - compareViewport.translateY) * diff;
+        compareViewport.scale = newScale;
+        applyCompareTransform();
+      }, { passive: false });
+
+      panel.addEventListener('mousedown', function(e) {
+        compareDragging = true;
+        compareLastX = e.clientX;
+        compareLastY = e.clientY;
+        panel.classList.add('dragging');
+      });
+    });
+
+    window.addEventListener('mousemove', function(e) {
+      if (!compareDragging) return;
+      compareViewport.translateX += e.clientX - compareLastX;
+      compareViewport.translateY += e.clientY - compareLastY;
+      compareLastX = e.clientX;
+      compareLastY = e.clientY;
+      applyCompareTransform();
+    });
+
+    window.addEventListener('mouseup', function() {
+      compareDragging = false;
+      document.querySelectorAll('.compare-panel').forEach(function(p) { p.classList.remove('dragging'); });
+    });
+
+    async function renderComparePanel(panelId, versionName) {
+      var panel = document.getElementById(panelId);
+      if (!panel || !versionName) return;
+      panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div><div class="compare-loading">Loading...</div>';
+
+      try {
+        if (diagramFormat === 'mermaid') {
+          var res = await fetch('/api/d/' + versionShortlink + '/versions/' + versionName + '/source');
+          var data = await res.json();
+          var mermaidTheme = getEffectiveTheme() === 'dark' ? 'dark' : 'default';
+          mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
+          var result = await mermaid.render('compare-' + panelId + '-' + Date.now(), data.source);
+          panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div>' + result.svg;
+        } else {
+          var theme = getEffectiveTheme();
+          var embedRes = await fetch('/e/' + versionShortlink + '/' + versionName + '?theme=' + theme);
+          var svgText = await embedRes.text();
+          panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div>' + svgText;
+        }
+      } catch (e) {
+        panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div><div class="compare-loading">Failed to load</div>';
+      }
+    }
+
+    var fromSel = document.getElementById('compare-from');
+    var toSel = document.getElementById('compare-to');
+    if (fromSel) {
+      fromSel.addEventListener('change', function() {
+        compareViewport = { scale: 1, translateX: 0, translateY: 0 };
+        renderComparePanel('compare-panel-from', this.value);
+      });
+    }
+    if (toSel) {
+      toSel.addEventListener('change', function() {
+        compareViewport = { scale: 1, translateX: 0, translateY: 0 };
+        renderComparePanel('compare-panel-to', this.value);
+      });
+    }
+
+    loadVersions();
+  `;
+}
+
 export const htmlGeneratorAtom = atom({
   deps: {},
   factory: (): HTMLGenerator => ({
-    generateMermaid(source: string, shortlink: string): string {
+    generateMermaid(source: string, shortlink: string, options?: HTMLGeneratorOptions): string {
       const escapedSource = escapeJs(source);
+      const versionInfo = options?.versionInfo;
+      const versionName = versionInfo?.currentVersion ?? shortlink;
       const title = `Diagram - ${shortlink}`;
+      const hasVersions = versionInfo?.hasMultipleVersions ?? false;
 
       return `<!DOCTYPE html>
 <html lang="en">
@@ -363,13 +663,14 @@ export const htmlGeneratorAtom = atom({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
-  <style>${baseStyles}</style>
+  <style>${baseStyles}${hasVersions ? versionStyles : ""}</style>
 </head>
 <body>
   <div id="diagram">
     <div id="loading">Loading diagram...</div>
   </div>
-  ${controlsHtml}
+  ${buildControlsHtml(versionInfo)}
+  ${hasVersions ? buildCompareOverlayHtml() : ""}
 
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <script>
@@ -396,7 +697,7 @@ export const htmlGeneratorAtom = atom({
 
     async function render() {
       const container = document.getElementById('diagram');
-      const cacheKey = 'diagram-' + shortlink;
+      const cacheKey = 'diagram-' + shortlink + '-${escapeJs(versionName)}';
 
       applyThemeUI();
 
@@ -430,6 +731,7 @@ export const htmlGeneratorAtom = atom({
     });
 
     render();
+    ${hasVersions && versionInfo ? buildVersionScript(versionInfo) : ""}
   </script>
 </body>
 </html>`;
@@ -437,6 +739,8 @@ export const htmlGeneratorAtom = atom({
 
     generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string {
       const title = `Diagram - ${shortlink}`;
+      const versionInfo = options?.versionInfo;
+      const hasVersions = versionInfo?.hasMultipleVersions ?? false;
 
       // Escape SVGs for embedding in script
       const escapedLightSvg = escapeJs(lightSvg);
@@ -459,13 +763,14 @@ export const htmlGeneratorAtom = atom({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>${ogTags}
-  <style>${baseStyles}</style>
+  <style>${baseStyles}${hasVersions ? versionStyles : ""}</style>
 </head>
 <body>
   <div id="diagram">
     <div id="loading">Loading diagram...</div>
   </div>
-  ${controlsHtml}
+  ${buildControlsHtml(versionInfo)}
+  ${hasVersions ? buildCompareOverlayHtml() : ""}
 
   <script>
     ${viewportScript}
@@ -503,6 +808,7 @@ export const htmlGeneratorAtom = atom({
     });
 
     render();
+    ${hasVersions && versionInfo ? buildVersionScript(versionInfo) : ""}
   </script>
 </body>
 </html>`;

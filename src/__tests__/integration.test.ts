@@ -7,6 +7,7 @@ interface CreateResponse {
   shortlink: string;
   url: string;
   embed: string;
+  version: string;
 }
 
 describe("Integration Tests", () => {
@@ -112,7 +113,7 @@ describe("Integration Tests", () => {
       expect(body.error).toContain("format");
     });
 
-    it("POST /render with mermaid source returns shortlink", async () => {
+    it("POST /render with mermaid source returns shortlink with version", async () => {
       const res = await fetch(`${baseUrl}/render`, {
         method: "POST",
         headers: {
@@ -131,6 +132,7 @@ describe("Integration Tests", () => {
       expect(body.shortlink).toMatch(/^[a-f0-9]{8}$/);
       expect(body.url).toBe(`${baseUrl}/d/${body.shortlink}`);
       expect(body.embed).toBe(`${baseUrl}/e/${body.shortlink}`);
+      expect(body.version).toBe("v1");
     });
 
     it("POST /render with d2 source returns shortlink", async () => {
@@ -174,7 +176,6 @@ describe("Integration Tests", () => {
     let createdShortlink: string;
 
     beforeAll(async () => {
-      // Create a diagram to view
       const res = await fetch(`${baseUrl}/render`, {
         method: "POST",
         headers: {
@@ -190,8 +191,16 @@ describe("Integration Tests", () => {
       createdShortlink = body.shortlink;
     });
 
-    it("GET /d/:shortlink returns HTML page", async () => {
-      const res = await fetch(`${baseUrl}/d/${createdShortlink}`);
+    it("GET /d/:shortlink redirects (302) to latest version", async () => {
+      const res = await fetch(`${baseUrl}/d/${createdShortlink}`, { redirect: "manual" });
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get("Location")).toBe(`/d/${createdShortlink}/v1`);
+      expect(res.headers.get("Cache-Control")).toBe("no-cache");
+    });
+
+    it("GET /d/:shortlink/:version returns HTML page", async () => {
+      const res = await fetch(`${baseUrl}/d/${createdShortlink}/v1`);
 
       expect(res.status).toBe(200);
       expect(res.headers.get("Content-Type")).toBe("text/html");
@@ -202,21 +211,36 @@ describe("Integration Tests", () => {
       expect(html).toContain("ViewTest-->Diagram");
     });
 
-    it("GET /d/:shortlink has cache headers", async () => {
-      const res = await fetch(`${baseUrl}/d/${createdShortlink}`);
+    it("GET /d/:shortlink/:version has immutable cache headers", async () => {
+      const res = await fetch(`${baseUrl}/d/${createdShortlink}/v1`);
 
       expect(res.status).toBe(200);
       expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
     });
 
-    it("GET /d/:shortlink includes X-Request-Id", async () => {
+    it("GET /d/:shortlink (following redirect) returns HTML page", async () => {
       const res = await fetch(`${baseUrl}/d/${createdShortlink}`);
 
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).toContain("ViewTest-->Diagram");
+    });
+
+    it("GET /d/:shortlink includes X-Request-Id", async () => {
+      const res = await fetch(`${baseUrl}/d/${createdShortlink}/v1`);
       expect(res.headers.get("X-Request-Id")).toBeDefined();
     });
 
     it("GET /d/nonexistent returns 404", async () => {
-      const res = await fetch(`${baseUrl}/d/nonexistent`);
+      const res = await fetch(`${baseUrl}/d/nonexistent`, { redirect: "manual" });
+      expect(res.status).toBe(404);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("not found");
+    });
+
+    it("GET /d/:shortlink/nonexistent returns 404", async () => {
+      const res = await fetch(`${baseUrl}/d/${createdShortlink}/nonexistent`);
       expect(res.status).toBe(404);
       const body = await res.json() as { error: string };
       expect(body.error).toContain("not found");
@@ -224,8 +248,7 @@ describe("Integration Tests", () => {
   });
 
   describe("D2 diagram viewing", () => {
-    it("GET /d/:shortlink for D2 returns HTML with D2 script", async () => {
-      // Create a D2 diagram
+    it("GET /d/:shortlink for D2 returns HTML with SVG via redirect", async () => {
       const createRes = await fetch(`${baseUrl}/render`, {
         method: "POST",
         headers: {
@@ -239,12 +262,11 @@ describe("Integration Tests", () => {
       });
       const createBody = await createRes.json() as CreateResponse;
 
-      // View it
+      // Following redirect automatically
       const viewRes = await fetch(`${baseUrl}/d/${createBody.shortlink}`);
 
       expect(viewRes.status).toBe(200);
       const html = await viewRes.text();
-      // D2 is now server-side rendered - check for SVG content
       expect(html).toContain("<svg");
       expect(html).toContain("server");
       expect(html).toContain("database");
@@ -280,6 +302,290 @@ describe("Integration Tests", () => {
       expect(res.status).toBe(200);
       const body = await res.json() as CreateResponse;
       expect(body.url).toMatch(/\/d\/[a-f0-9]{8}$/);
+    });
+  });
+
+  describe("Version management", () => {
+    let shortlink: string;
+
+    beforeAll(async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; Step1-->Step2;",
+          format: "mermaid",
+        }),
+      });
+      const body = await res.json() as CreateResponse;
+      shortlink = body.shortlink;
+    });
+
+    it("POST /render with shortlink adds auto-versioned v2", async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; Step1-->Step2-->Step3;",
+          format: "mermaid",
+          shortlink,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as CreateResponse;
+      expect(body.shortlink).toBe(shortlink);
+      expect(body.version).toBe("v2");
+      expect(body.url).toBe(`${baseUrl}/d/${shortlink}/v2`);
+      expect(body.embed).toBe(`${baseUrl}/e/${shortlink}/v2`);
+    });
+
+    it("POST /render with shortlink + named version works", async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; Final-->Version;",
+          format: "mermaid",
+          shortlink,
+          version: "final",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as CreateResponse;
+      expect(body.version).toBe("final");
+    });
+
+    it("POST /render with duplicate version name returns 409", async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; Duplicate;",
+          format: "mermaid",
+          shortlink,
+          version: "final",
+        }),
+      });
+
+      expect(res.status).toBe(409);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("already exists");
+    });
+
+    it("POST /render with mismatched format returns 400", async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "a -> b",
+          format: "d2",
+          shortlink,
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("Format mismatch");
+    });
+
+    it("POST /render with reserved name v3 returns 400", async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; A;",
+          format: "mermaid",
+          shortlink,
+          version: "v3",
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("reserved");
+    });
+
+    it("POST /render with version but no shortlink returns 400", async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; A;",
+          format: "mermaid",
+          version: "test",
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("version requires shortlink");
+    });
+
+    it("POST /render with nonexistent shortlink returns 404", async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; A;",
+          format: "mermaid",
+          shortlink: "nonexist",
+        }),
+      });
+
+      expect(res.status).toBe(404);
+      const body = await res.json() as { error: string };
+      expect(body.error).toContain("not found");
+    });
+
+    it("bare shortlink redirects to latest version (named)", async () => {
+      // After adding v1, v2, "final" — latest should be "final"
+      const res = await fetch(`${baseUrl}/d/${shortlink}`, { redirect: "manual" });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("Location")).toBe(`/d/${shortlink}/final`);
+    });
+
+    it("versioned view shows version picker for multi-version diagram", async () => {
+      const res = await fetch(`${baseUrl}/d/${shortlink}/v1`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain("version-picker");
+      expect(html).toContain("compare-btn");
+    });
+  });
+
+  describe("Version API endpoints", () => {
+    let shortlink: string;
+
+    beforeAll(async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; API1-->API2;",
+          format: "mermaid",
+        }),
+      });
+      const body = await res.json() as CreateResponse;
+      shortlink = body.shortlink;
+
+      // Add a second version
+      await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "graph TD; API1-->API2-->API3;",
+          format: "mermaid",
+          shortlink,
+        }),
+      });
+    });
+
+    it("GET /api/d/:shortlink/versions returns version list", async () => {
+      const res = await fetch(`${baseUrl}/api/d/${shortlink}/versions`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe("no-cache");
+
+      const body = await res.json() as { shortlink: string; format: string; versions: Array<{ name: string; auto: boolean }> };
+      expect(body.shortlink).toBe(shortlink);
+      expect(body.format).toBe("mermaid");
+      expect(body.versions).toHaveLength(2);
+      expect(body.versions[0].name).toBe("v1");
+      expect(body.versions[0].auto).toBe(true);
+      expect(body.versions[1].name).toBe("v2");
+    });
+
+    it("GET /api/d/:shortlink/versions does not require auth", async () => {
+      const res = await fetch(`${baseUrl}/api/d/${shortlink}/versions`);
+      expect(res.status).toBe(200);
+    });
+
+    it("GET /api/d/:shortlink/versions/v1/source returns source", async () => {
+      const res = await fetch(`${baseUrl}/api/d/${shortlink}/versions/v1/source`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+
+      const body = await res.json() as { source: string; format: string };
+      expect(body.source).toBe("graph TD; API1-->API2;");
+      expect(body.format).toBe("mermaid");
+    });
+
+    it("GET /api/d/nonexist/versions returns 404", async () => {
+      const res = await fetch(`${baseUrl}/api/d/nonexist/versions`);
+      expect(res.status).toBe(404);
+    });
+
+    it("GET /api/d/:shortlink/versions/nonexist/source returns 404", async () => {
+      const res = await fetch(`${baseUrl}/api/d/${shortlink}/versions/nonexist/source`);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("Embed versioned", () => {
+    let shortlink: string;
+
+    beforeAll(async () => {
+      const res = await fetch(`${baseUrl}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          source: "embed_a -> embed_b",
+          format: "d2",
+        }),
+      });
+      const body = await res.json() as CreateResponse;
+      shortlink = body.shortlink;
+    });
+
+    it("GET /e/:shortlink redirects to latest version", async () => {
+      const res = await fetch(`${baseUrl}/e/${shortlink}`, { redirect: "manual" });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("Location")).toBe(`/e/${shortlink}/v1`);
+      expect(res.headers.get("Cache-Control")).toBe("no-cache");
+    });
+
+    it("GET /e/:shortlink/:version returns SVG with immutable cache", async () => {
+      const res = await fetch(`${baseUrl}/e/${shortlink}/v1`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+      expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+
+      const svg = await res.text();
+      expect(svg).toContain("<svg");
     });
   });
 

@@ -7,12 +7,14 @@ import { NotFoundError } from "./view";
 
 export interface EmbedInput {
   shortlink: string;
+  versionName?: string;
   theme?: "light" | "dark";
 }
 
 export interface EmbedOutput {
   svg: string;
   contentType: "image/svg+xml";
+  redirect?: string;
 }
 
 export class EmbedNotSupportedError extends Error {
@@ -48,7 +50,12 @@ function parseEmbedInput(input: unknown): EmbedInput {
     theme = "dark";
   }
 
-  return { shortlink: obj.shortlink, theme };
+  const result: EmbedInput = { shortlink: obj.shortlink, theme };
+  if (typeof obj.versionName === "string" && obj.versionName.trim() !== "") {
+    result.versionName = obj.versionName;
+  }
+
+  return result;
 }
 
 export const embedFlow = flow({
@@ -63,13 +70,33 @@ export const embedFlow = flow({
   factory: async (ctx, { diagramStore, d2Renderer, mermaidRenderer, logger }): Promise<EmbedOutput> => {
     const { input } = ctx;
 
-    logger.debug({ shortlink: input.shortlink, theme: input.theme }, "Embedding diagram");
+    logger.debug({ shortlink: input.shortlink, versionName: input.versionName, theme: input.theme }, "Embedding diagram");
 
+    // Check diagram exists
     const diagram = diagramStore.get(input.shortlink);
-
     if (!diagram) {
       logger.debug({ shortlink: input.shortlink }, "Diagram not found");
       throw new NotFoundError("Diagram not found");
+    }
+
+    // If no version specified, redirect to latest
+    if (!input.versionName) {
+      const latestVersion = diagramStore.getLatestVersionName(input.shortlink);
+      if (!latestVersion) {
+        throw new NotFoundError("Diagram not found");
+      }
+      const themeParam = input.theme === "dark" ? "?theme=dark" : "";
+      return {
+        svg: "",
+        contentType: "image/svg+xml",
+        redirect: `/e/${input.shortlink}/${latestVersion}${themeParam}`,
+      };
+    }
+
+    // Serve specific version
+    const versionData = diagramStore.getVersionSource(input.shortlink, input.versionName);
+    if (!versionData) {
+      throw new NotFoundError("Version not found");
     }
 
     // Update access time for retention
@@ -77,25 +104,24 @@ export const embedFlow = flow({
 
     let svg: string;
 
-    if (diagram.format === "d2") {
+    if (versionData.format === "d2") {
       try {
-        svg = await d2Renderer.render(diagram.source, input.theme ?? "light");
+        svg = await d2Renderer.render(versionData.source, input.theme ?? "light");
       } catch (err) {
         logger.error({ shortlink: input.shortlink, error: err }, "D2 render failed");
         throw new EmbedRenderError(`D2 render failed: ${(err as Error).message}`);
       }
-    } else if (diagram.format === "mermaid") {
+    } else if (versionData.format === "mermaid") {
       if (!mermaidRenderer) {
         logger.debug({ shortlink: input.shortlink }, "Mermaid SSR not available");
         throw new EmbedNotSupportedError("Mermaid SSR not configured. Set CHROME_PATH environment variable.");
       }
       try {
-        svg = await mermaidRenderer.render(diagram.source);
+        svg = await mermaidRenderer.render(versionData.source);
       } catch (err) {
         const message = (err as Error).message;
         logger.error({ shortlink: input.shortlink, error: err }, "Mermaid render failed");
 
-        // Map specific errors to appropriate status codes
         if (message.includes("forbidden")) {
           throw new EmbedRenderError(message, 400);
         }
@@ -108,10 +134,10 @@ export const embedFlow = flow({
         throw new EmbedRenderError(`Mermaid render failed: ${message}`);
       }
     } else {
-      throw new EmbedNotSupportedError(`Unsupported format: ${diagram.format}`);
+      throw new EmbedNotSupportedError(`Unsupported format: ${versionData.format}`);
     }
 
-    logger.debug({ shortlink: input.shortlink, format: diagram.format }, "Generated embed SVG");
+    logger.debug({ shortlink: input.shortlink, version: input.versionName, format: versionData.format }, "Generated embed SVG");
 
     return {
       svg,

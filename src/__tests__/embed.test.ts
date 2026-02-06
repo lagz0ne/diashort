@@ -22,7 +22,7 @@ describe("embedFlow - mermaid not configured", () => {
         await expect(
           ctx.exec({
             flow: embedFlow,
-            input: { shortlink, theme: "light" },
+            input: { shortlink, versionName: "v1", theme: "light" },
           })
         ).rejects.toThrow("Mermaid SSR not configured");
       } finally {
@@ -55,7 +55,7 @@ describeWithChrome("embedFlow - mermaid", () => {
       try {
         const result = await ctx.exec({
           flow: embedFlow,
-          input: { shortlink, theme: "light" },
+          input: { shortlink, versionName: "v1", theme: "light" },
         });
 
         expect(result.svg).toContain("<svg");
@@ -83,7 +83,7 @@ describeWithChrome("embedFlow - mermaid", () => {
       try {
         await ctx.exec({
           flow: embedFlow,
-          input: { shortlink, theme: "light" },
+          input: { shortlink, versionName: "v1", theme: "light" },
         });
         expect.unreachable("Should have thrown");
       } catch (err) {

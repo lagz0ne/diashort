@@ -3,7 +3,7 @@ id: adr-20260122-browser-farm-mermaid-ssr
 c3-version: 3
 title: Browser Farm for Server-Side Mermaid Rendering
 type: adr
-status: accepted
+status: implemented
 date: 2026-01-22
 affects: [c3-0, c3-1]
 base-commit: de1d42f0573b40783ff477cae566d7671bfaf471
@@ -24,7 +24,7 @@ approved-files:
 
 ## Status
 
-**Accepted** - 2026-01-22
+**Implemented** - 2026-01-22
 
 ## Problem
 
@@ -235,15 +235,15 @@ New environment variables:
 
 ## Verification
 
-- [ ] `GET /e/:shortlink` returns SVG for Mermaid diagrams
-- [ ] SVG contains valid rendered diagram (not error state)
-- [ ] Theme parameter works (`?theme=dark`)
-- [ ] Timeout returns 503 after 30 seconds
-- [ ] Retry logic attempts up to 2x on failure
-- [ ] Pool respects `BROWSER_POOL_SIZE` configuration
-- [ ] D2 rendering unchanged (still uses CLI)
-- [ ] Memory stays within expected bounds (~300MB per browser)
-- [ ] Integration tests pass for both Mermaid and D2 embed
+- [x] `GET /e/:shortlink` returns SVG for Mermaid diagrams
+- [x] SVG contains valid rendered diagram (not error state)
+- [x] Theme parameter works (`?theme=dark`)
+- [x] Timeout returns 503 after 30 seconds
+- [x] Retry logic attempts up to 2x on failure
+- [x] Pool respects `BROWSER_POOL_SIZE` configuration
+- [x] D2 rendering unchanged (still uses CLI)
+- [x] Memory stays within expected bounds (~300MB per browser)
+- [x] Integration tests pass for both Mermaid and D2 embed
 
 ## References
 
