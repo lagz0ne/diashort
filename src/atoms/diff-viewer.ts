@@ -82,13 +82,16 @@ const diffStyles = `
   .panel-header {
     padding: 8px 16px;
     font-weight: 600;
-    font-size: 14px;
-    background: #f0f0f0;
-    border-bottom: 1px solid #ddd;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #777;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e5e5e5;
     text-align: center;
   }
 
-  html[data-theme="dark"] .panel-header { background: #2a2a2a; border-color: #333; }
+  html[data-theme="dark"] .panel-header { background: #222; border-color: #333; color: #888; }
 
   .panel-content {
     flex: 1;
@@ -123,46 +126,57 @@ const diffStyles = `
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 4px;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 6px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 8px 10px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.1);
+    border: 1px solid rgba(0,0,0,0.06);
     z-index: 1000;
+    align-items: center;
   }
 
-  html[data-theme="dark"] .controls { background: rgba(40, 40, 40, 0.9); }
+  html[data-theme="dark"] .controls {
+    background: rgba(36, 36, 36, 0.92);
+    border-color: rgba(255,255,255,0.08);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.3);
+  }
 
   .controls button {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border: none;
     background: transparent;
     cursor: pointer;
-    border-radius: 4px;
-    font-size: 18px;
+    border-radius: 7px;
+    font-size: 17px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #333;
-    transition: background 0.15s;
+    color: #444;
+    transition: background 0.15s, color 0.15s;
   }
 
-  html[data-theme="dark"] .controls button { color: #eee; }
+  html[data-theme="dark"] .controls button { color: #ccc; }
 
-  .controls button:hover { background: rgba(0, 0, 0, 0.1); }
+  .controls button:hover { background: rgba(0, 0, 0, 0.07); color: #111; }
 
-  html[data-theme="dark"] .controls button:hover { background: rgba(255, 255, 255, 0.1); }
-  .controls button.active { background: rgba(0, 102, 204, 0.2); }
-  html[data-theme="dark"] .controls button.active { background: rgba(0, 102, 204, 0.3); }
+  html[data-theme="dark"] .controls button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+  .controls button.active { background: rgba(0, 102, 204, 0.15); color: #0066cc; }
+  html[data-theme="dark"] .controls button.active { background: rgba(60, 140, 255, 0.2); color: #6ab0ff; }
+  .controls button:focus-visible { outline: 2px solid #0066cc; outline-offset: 1px; }
 
   .controls .separator {
     width: 1px;
-    background: #ddd;
-    margin: 4px 2px;
+    height: 20px;
+    background: rgba(0,0,0,0.1);
+    margin: 0 2px;
+    flex-shrink: 0;
   }
 
-  html[data-theme="dark"] .controls .separator { background: #555; }
+  html[data-theme="dark"] .controls .separator { background: rgba(255,255,255,0.1); }
 
   #loading {
     color: #666;
@@ -195,20 +209,29 @@ const syncedViewportScript = `
 
   function initSyncedViewport() {
     const panels = document.querySelectorAll('.panel-content');
-    const firstSvg = panels[0]?.querySelector('svg');
-    if (!firstSvg) return;
+    const allSvgs = Array.from(panels).map(p => p.querySelector('svg')).filter(Boolean);
+    if (allSvgs.length === 0) return;
 
-    let svgWidth, svgHeight;
-    const viewBox = firstSvg.getAttribute('viewBox');
-    if (viewBox) {
-      const parts = viewBox.split(/[\\s,]+/).map(Number);
-      svgWidth = parts[2] || 800;
-      svgHeight = parts[3] || 600;
-    } else {
-      const bbox = firstSvg.getBBox();
-      svgWidth = bbox.width || 800;
-      svgHeight = bbox.height || 600;
-    }
+    // Find max dimensions across all SVGs for consistent scaling
+    let maxWidth = 0, maxHeight = 0;
+    allSvgs.forEach(svg => {
+      let w, h;
+      const viewBox = svg.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/[\\s,]+/).map(Number);
+        w = parts[2] || 800;
+        h = parts[3] || 600;
+      } else {
+        const bbox = svg.getBBox();
+        w = bbox.width || 800;
+        h = bbox.height || 600;
+      }
+      if (w > maxWidth) maxWidth = w;
+      if (h > maxHeight) maxHeight = h;
+    });
+
+    var svgWidth = maxWidth;
+    var svgHeight = maxHeight;
 
     // Get panel dimensions (half viewport width on desktop)
     const panel = panels[0];
@@ -231,14 +254,11 @@ const syncedViewportScript = `
     syncedViewport.homeState = { scale: fitScale, translateX: tx, translateY: ty };
 
     // Set explicit dimensions on all SVGs
-    panels.forEach(panel => {
-      const svg = panel.querySelector('svg');
-      if (svg) {
-        svg.setAttribute('width', svgWidth);
-        svg.setAttribute('height', svgHeight);
-        svg.style.width = svgWidth + 'px';
-        svg.style.height = svgHeight + 'px';
-      }
+    allSvgs.forEach(svg => {
+      svg.setAttribute('width', svgWidth);
+      svg.setAttribute('height', svgHeight);
+      svg.style.width = svgWidth + 'px';
+      svg.style.height = svgHeight + 'px';
     });
 
     applyTransformToAll();
@@ -452,7 +472,7 @@ const layoutScript = `
 
     // Recalculate viewport after layout change
     if (typeof initSyncedViewport === 'function') {
-      setTimeout(initSyncedViewport, 50);
+      requestAnimationFrame(function() { initSyncedViewport(); });
     }
   }
 
@@ -543,7 +563,7 @@ export const diffViewerAtom = atom({
         ]);
         panelBefore.innerHTML = beforeResult.svg;
         panelAfter.innerHTML = afterResult.svg;
-        initSyncedViewport();
+        requestAnimationFrame(function() { initSyncedViewport(); });
       } catch (err) {
         panelBefore.innerHTML = '<div style="color: red; padding: 16px;">' + err.message + '</div>';
         panelAfter.innerHTML = '<div style="color: red; padding: 16px;">' + err.message + '</div>';
@@ -625,7 +645,7 @@ export const diffViewerAtom = atom({
       panelBefore.innerHTML = theme === 'dark' ? beforeDarkSvg : beforeLightSvg;
       panelAfter.innerHTML = theme === 'dark' ? afterDarkSvg : afterLightSvg;
 
-      initSyncedViewport();
+      requestAnimationFrame(function() { initSyncedViewport(); });
     }
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {

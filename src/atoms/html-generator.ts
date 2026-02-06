@@ -97,61 +97,94 @@ const baseStyles = `
       bottom: 16px;
       right: 16px;
       display: flex;
-      gap: 4px;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 6px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 8px 10px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.1);
+      border: 1px solid rgba(0,0,0,0.06);
       z-index: 1000;
       align-items: center;
     }
-    html[data-theme="dark"] .controls { background: rgba(40, 40, 40, 0.9); }
+    html[data-theme="dark"] .controls {
+      background: rgba(36, 36, 36, 0.92);
+      border-color: rgba(255,255,255,0.08);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.3);
+    }
     .controls button {
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border: none;
       background: transparent;
       cursor: pointer;
-      border-radius: 4px;
-      font-size: 18px;
+      border-radius: 7px;
+      font-size: 17px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #333;
-      transition: background 0.15s;
+      color: #444;
+      transition: background 0.15s, color 0.15s;
     }
-    html[data-theme="dark"] .controls button { color: #eee; }
-    .controls button:hover { background: rgba(0, 0, 0, 0.1); }
-    html[data-theme="dark"] .controls button:hover { background: rgba(255, 255, 255, 0.1); }
-    .controls button.active { background: rgba(0, 102, 204, 0.2); }
-    html[data-theme="dark"] .controls button.active { background: rgba(0, 102, 204, 0.3); }
-    .controls button:focus {
+    html[data-theme="dark"] .controls button { color: #ccc; }
+    .controls button:hover { background: rgba(0, 0, 0, 0.07); color: #111; }
+    html[data-theme="dark"] .controls button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .controls button.active { background: rgba(0, 102, 204, 0.15); color: #0066cc; }
+    html[data-theme="dark"] .controls button.active { background: rgba(60, 140, 255, 0.2); color: #6ab0ff; }
+    .controls button:focus-visible {
       outline: 2px solid #0066cc;
       outline-offset: 1px;
     }
     .controls .separator {
       width: 1px;
-      background: #ddd;
-      margin: 4px 2px;
+      height: 20px;
+      background: rgba(0,0,0,0.1);
+      margin: 0 2px;
+      flex-shrink: 0;
     }
-    html[data-theme="dark"] .controls .separator { background: #555; }
+    html[data-theme="dark"] .controls .separator { background: rgba(255,255,255,0.1); }
     .controls select {
-      height: 32px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 0 8px;
+      height: 34px;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 7px;
+      padding: 0 28px 0 10px;
       font-size: 13px;
-      background: transparent;
+      font-weight: 500;
+      background: rgba(0,0,0,0.03);
       color: #333;
       cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: border-color 0.15s, background 0.15s;
     }
-    html[data-theme="dark"] .controls select { border-color: #555; color: #eee; background: #333; }
+    .controls select:hover { border-color: rgba(0,0,0,0.25); background: rgba(0,0,0,0.06); }
+    .controls select:focus-visible { outline: 2px solid #0066cc; outline-offset: 1px; }
+    html[data-theme="dark"] .controls select {
+      border-color: rgba(255,255,255,0.12);
+      color: #ddd;
+      background-color: rgba(255,255,255,0.06);
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    html[data-theme="dark"] .controls select:hover { border-color: rgba(255,255,255,0.25); background-color: rgba(255,255,255,0.1); }
+    .controls #compare-btn {
+      font-size: 14px;
+      font-weight: 500;
+      width: auto;
+      padding: 0 10px;
+      gap: 4px;
+      letter-spacing: -0.01em;
+    }
     @media (pointer: coarse) {
       .controls button { width: 44px; height: 44px; }
       .controls select { height: 44px; }
+      .controls #compare-btn { height: 44px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .controls button { transition: none; }
+      .controls button, .controls select { transition: none; }
     }
 `;
 
@@ -168,36 +201,59 @@ const versionStyles = `
     .compare-header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
+      gap: 10px;
+      padding: 10px 16px;
       background: #fff;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid #e5e5e5;
       flex-shrink: 0;
     }
-    html[data-theme="dark"] .compare-header { background: #222; border-color: #444; }
-    .compare-header label { font-size: 13px; font-weight: 600; color: #555; }
-    html[data-theme="dark"] .compare-header label { color: #aaa; }
-    .compare-header select {
-      height: 32px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 0 8px;
-      font-size: 13px;
-      background: #fff;
-      color: #333;
+    html[data-theme="dark"] .compare-header { background: #1e1e1e; border-color: #333; }
+    .compare-header label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
-    html[data-theme="dark"] .compare-header select { border-color: #555; background: #333; color: #eee; }
+    html[data-theme="dark"] .compare-header label { color: #777; }
+    .compare-header select {
+      height: 34px;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 7px;
+      padding: 0 28px 0 10px;
+      font-size: 13px;
+      font-weight: 500;
+      background: rgba(0,0,0,0.03);
+      color: #333;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: border-color 0.15s;
+      cursor: pointer;
+    }
+    .compare-header select:hover { border-color: rgba(0,0,0,0.25); }
+    .compare-header select:focus-visible { outline: 2px solid #0066cc; outline-offset: 1px; }
+    html[data-theme="dark"] .compare-header select {
+      border-color: rgba(255,255,255,0.12);
+      background-color: rgba(255,255,255,0.06);
+      color: #ddd;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    html[data-theme="dark"] .compare-header select:hover { border-color: rgba(255,255,255,0.25); }
     .compare-header .compare-close {
       margin-left: auto;
-      width: 32px; height: 32px;
+      width: 34px; height: 34px;
       border: none; background: transparent;
-      cursor: pointer; font-size: 20px; color: #666;
-      border-radius: 4px;
+      cursor: pointer; font-size: 18px; color: #888;
+      border-radius: 7px;
       display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
     }
-    .compare-header .compare-close:hover { background: rgba(0,0,0,0.1); }
-    html[data-theme="dark"] .compare-header .compare-close { color: #ccc; }
-    html[data-theme="dark"] .compare-header .compare-close:hover { background: rgba(255,255,255,0.1); }
+    .compare-header .compare-close:hover { background: rgba(0,0,0,0.07); color: #333; }
+    html[data-theme="dark"] .compare-header .compare-close { color: #888; }
+    html[data-theme="dark"] .compare-header .compare-close:hover { background: rgba(255,255,255,0.1); color: #ddd; }
     .compare-panels {
       flex: 1;
       display: flex;
@@ -244,7 +300,7 @@ function buildControlsHtml(versionInfo?: VersionInfo): string {
   const versionControls = versionInfo?.hasMultipleVersions
     ? `
     <select id="version-picker" aria-label="Select version"></select>
-    <button id="compare-btn" aria-label="Compare versions" title="Compare versions">&#x2194;</button>
+    <button id="compare-btn" aria-label="Compare versions" title="Compare versions">&#x2194; Compare</button>
     <div class="separator"></div>`
     : "";
 
