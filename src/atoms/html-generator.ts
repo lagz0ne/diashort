@@ -50,8 +50,7 @@ const baseStyles = `
       -webkit-user-select: none;
     }
     html[data-theme="dark"] #diagram svg {
-      background: #fafafa;
-      border-radius: 8px;
+      filter: invert(1) hue-rotate(180deg);
     }
     #diagram.selectable svg {
       user-select: text;

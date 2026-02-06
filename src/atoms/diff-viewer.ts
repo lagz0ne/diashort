@@ -108,8 +108,7 @@ const diffStyles = `
     -webkit-user-select: none;
   }
   html[data-theme="dark"] .panel-content svg {
-    background: #fafafa;
-    border-radius: 8px;
+    filter: invert(1) hue-rotate(180deg);
   }
   .panel-content.selectable svg {
     user-select: text;
