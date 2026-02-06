@@ -107,6 +107,10 @@ const diffStyles = `
     user-select: none;
     -webkit-user-select: none;
   }
+  html[data-theme="dark"] .panel-content svg {
+    background: #fafafa;
+    border-radius: 8px;
+  }
   .panel-content.selectable svg {
     user-select: text;
     -webkit-user-select: text;

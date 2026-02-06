@@ -49,6 +49,10 @@ const baseStyles = `
       user-select: none;
       -webkit-user-select: none;
     }
+    html[data-theme="dark"] #diagram svg {
+      background: #fafafa;
+      border-radius: 8px;
+    }
     #diagram.selectable svg {
       user-select: text;
       -webkit-user-select: text;
