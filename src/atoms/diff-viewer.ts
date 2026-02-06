@@ -102,7 +102,7 @@ const diffStyles = `
 
   .panel-content.dragging { cursor: grabbing; }
 
-  .panel-content svg {
+  .panel-content > svg {
     transform-origin: 0 0;
     position: absolute;
     top: 0;
@@ -110,10 +110,10 @@ const diffStyles = `
     user-select: none;
     -webkit-user-select: none;
   }
-  html[data-theme="dark"] .panel-content svg {
+  html[data-theme="dark"] .panel-content > svg {
     filter: invert(1) hue-rotate(180deg);
   }
-  .panel-content.selectable svg {
+  .panel-content.selectable > svg {
     user-select: text;
     -webkit-user-select: text;
   }
@@ -206,10 +206,11 @@ const syncedViewportScript = `
   let lastX = 0, lastY = 0;
   let initialPinchDistance = 0;
   let initialPinchScale = 1;
+  let listenersAttached = false;
 
   function initSyncedViewport() {
     const panels = document.querySelectorAll('.panel-content');
-    const allSvgs = Array.from(panels).map(p => p.querySelector('svg')).filter(Boolean);
+    const allSvgs = Array.from(panels).map(p => p.querySelector(':scope > svg')).filter(Boolean);
     if (allSvgs.length === 0) return;
 
     // Find max dimensions across all SVGs for consistent scaling
@@ -236,6 +237,13 @@ const syncedViewportScript = `
     // Get panel dimensions (half viewport width on desktop)
     const panel = panels[0];
     const panelRect = panel.getBoundingClientRect();
+
+    // Retry if panel hasn't been laid out yet
+    if (panelRect.width === 0 || panelRect.height === 0) {
+      requestAnimationFrame(function() { initSyncedViewport(); });
+      return;
+    }
+
     const vw = panelRect.width - syncedViewport.padding * 2;
     const vh = panelRect.height - syncedViewport.padding * 2;
 
@@ -262,11 +270,14 @@ const syncedViewportScript = `
     });
 
     applyTransformToAll();
-    setupSyncedEventListeners();
+    if (!listenersAttached) {
+      setupSyncedEventListeners();
+      listenersAttached = true;
+    }
   }
 
   function applyTransformToAll() {
-    document.querySelectorAll('.panel-content svg').forEach(svg => {
+    document.querySelectorAll('.panel-content > svg').forEach(svg => {
       svg.style.transform = 'translate(' + syncedViewport.translateX + 'px, ' + syncedViewport.translateY + 'px) scale(' + syncedViewport.scale + ')';
     });
   }
@@ -402,7 +413,7 @@ const syncedViewportScript = `
     window.addEventListener('resize', function() {
       // Recalculate home state on resize
       const panel = panels[0];
-      const svg = panel.querySelector('svg');
+      const svg = panel.querySelector(':scope > svg');
       if (!svg) return;
 
       const svgWidth = parseFloat(svg.getAttribute('width')) || 800;

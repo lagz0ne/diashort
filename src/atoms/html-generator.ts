@@ -50,7 +50,7 @@ const baseStyles = `
       position: relative;
     }
     #diagram.dragging { cursor: grabbing; }
-    #diagram svg {
+    #diagram > svg {
       transform-origin: 0 0;
       position: absolute;
       top: 0;
@@ -58,10 +58,10 @@ const baseStyles = `
       user-select: none;
       -webkit-user-select: none;
     }
-    html[data-theme="dark"] #diagram svg {
+    html[data-theme="dark"] #diagram > svg {
       filter: invert(1) hue-rotate(180deg);
     }
-    #diagram.selectable svg {
+    #diagram.selectable > svg {
       user-select: text;
       -webkit-user-select: text;
     }
@@ -281,7 +281,7 @@ const versionStyles = `
       z-index: 1;
       pointer-events: none;
     }
-    .compare-panel svg {
+    .compare-panel > svg {
       transform-origin: 0 0;
       position: absolute;
       top: 0; left: 0;
@@ -358,7 +358,7 @@ const viewportScript = `
 
   function initViewport() {
     const container = document.getElementById('diagram');
-    const svg = container.querySelector('svg');
+    const svg = container.querySelector(':scope > svg');
     if (!svg) return;
 
     // Get SVG dimensions from viewBox or getBBox
@@ -403,7 +403,7 @@ const viewportScript = `
   }
 
   function applyTransform() {
-    const svg = document.querySelector('#diagram svg');
+    const svg = document.querySelector('#diagram > svg');
     if (!svg) return;
     svg.style.transform = 'translate(' + viewport.translateX + 'px, ' + viewport.translateY + 'px) scale(' + viewport.scale + ')';
   }
@@ -527,7 +527,7 @@ const viewportScript = `
 
     // Recalculate on resize
     window.addEventListener('resize', function() {
-      const svg = document.querySelector('#diagram svg');
+      const svg = document.querySelector('#diagram > svg');
       if (!svg) return;
       const svgWidth = parseFloat(svg.getAttribute('width')) || 800;
       const svgHeight = parseFloat(svg.getAttribute('height')) || 600;
@@ -605,7 +605,7 @@ function buildVersionScript(versionInfo: VersionInfo): string {
     var compareLastX = 0, compareLastY = 0;
 
     function applyCompareTransform() {
-      var panels = document.querySelectorAll('.compare-panel svg');
+      var panels = document.querySelectorAll('.compare-panel > svg');
       panels.forEach(function(svg) {
         svg.style.transform = 'translate(' + compareViewport.translateX + 'px, ' + compareViewport.translateY + 'px) scale(' + compareViewport.scale + ')';
       });
