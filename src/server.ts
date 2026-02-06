@@ -391,113 +391,29 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
         }
 
         if (req.method === "GET" && url.pathname === "/") {
-          const usage = `# Diashort - Diagram Shortlink Service
+          const usage = `Diashort — Diagram shortlink service (Mermaid & D2)
 
-Stores Mermaid or D2 diagram source and returns a shareable shortlink.
-Diagrams render client-side in the browser. Supports multiple versions per shortlink.
+POST /render  Create diagram or add version to existing shortlink
+  {"source": "...", "format": "mermaid|d2", "shortlink?": "...", "version?": "..."}
+  -> {"shortlink", "url", "embed", "version"}
+  Versions auto-name as v1, v2... or use custom names (must start with letter, vN reserved)
 
-## Endpoints
+GET  /d/:id            302 -> /d/:id/:latest
+GET  /d/:id/:version   View diagram (HTML viewer with zoom/pan, version picker, compare)
+GET  /e/:id            302 -> /e/:id/:latest
+GET  /e/:id/:version   Raw SVG embed (?theme=light|dark)
 
-### POST /render
-Submit a diagram for storage. Optionally add a version to an existing shortlink.
+GET  /api/d/:id/versions              List versions (JSON)
+GET  /api/d/:id/versions/:v/source    Get version source (JSON)
 
-Request (new diagram):
-  curl -X POST ${url.origin}/render \\
-    -H "Content-Type: application/json" \\
-    -d '{"source": "A -> B -> C", "format": "d2"}'
+POST /diff  Compare two diagrams side-by-side
+  {"format": "mermaid|d2", "before": "...", "after": "..."}
+GET  /diff/:id  View diff (?layout=horizontal|vertical)
 
-Response:
-  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345", "embed": "${url.origin}/e/abc12345", "version": "v1"}
+GET  /health
 
-Request (add version to existing):
-  curl -X POST ${url.origin}/render \\
-    -H "Content-Type: application/json" \\
-    -d '{"source": "A -> B -> C -> D", "format": "d2", "shortlink": "abc12345"}'
-
-Response:
-  {"shortlink": "abc12345", "url": "${url.origin}/d/abc12345/v2", "embed": "${url.origin}/e/abc12345/v2", "version": "v2"}
-
-Parameters:
-  - source: Diagram source code (required)
-  - format: "mermaid" or "d2" (required)
-  - shortlink: Existing shortlink to add version to (optional)
-  - version: Custom version name (optional, requires shortlink)
-
-Version naming:
-  - Auto-generated as v1, v2, etc. when not specified
-  - Custom names must start with a letter (e.g. "draft-1", "final")
-  - Names matching vN (e.g. v1, v2) are reserved for auto-naming
-  - Versions are immutable once created (409 on duplicate)
-
-### GET /d/:shortlink
-Redirects (302) to the latest version: /d/:shortlink/:latestVersion
-
-### GET /d/:shortlink/:version
-View a specific version (returns HTML page with interactive viewer).
-Includes version picker and compare overlay when multiple versions exist.
-
-Example:
-  Open in browser: ${url.origin}/d/abc12345/v1
-
-### GET /e/:shortlink
-Redirects (302) to the latest version embed.
-
-### GET /e/:shortlink/:version
-Get raw SVG for a specific version (D2 and Mermaid).
-
-Use in markdown:
-  ![Diagram](${url.origin}/e/abc12345/v1)
-
-Query parameters:
-  - theme: "light" (default) or "dark" (D2 only, mermaid uses default theme)
-
-Note: Mermaid SSR requires CHROME_PATH to be configured.
-
-### GET /api/d/:shortlink/versions
-List all versions of a diagram.
-
-Response:
-  {"shortlink": "abc12345", "format": "d2", "versions": [{"name": "v1", "createdAt": 1707177600000, "auto": true}]}
-
-### GET /api/d/:shortlink/versions/:version/source
-Get the raw source of a specific version.
-
-Response:
-  {"source": "A -> B -> C", "format": "d2"}
-
-### POST /diff
-Create a side-by-side comparison of two diagrams.
-
-Request:
-  curl -X POST ${url.origin}/diff \\
-    -H "Content-Type: application/json" \\
-    -d '{"format": "mermaid", "before": "graph TD; A-->B;", "after": "graph TD; A-->B-->C;"}'
-
-Response:
-  {"shortlink": "xyz78901", "url": "${url.origin}/diff/xyz78901"}
-
-Parameters:
-  - format: "mermaid" or "d2" (required)
-  - before: Source code for the "before" diagram (required)
-  - after: Source code for the "after" diagram (required)
-
-### GET /diff/:shortlink
-View the side-by-side comparison with synced zoom/pan.
-
-Example:
-  Open in browser: ${url.origin}/diff/xyz78901
-
-Query parameters:
-  - layout: "horizontal" (default, side-by-side) or "vertical" (top-to-bottom)
-
-Example with vertical layout:
-  ${url.origin}/diff/xyz78901?layout=vertical
-
-### GET /health
-Health check endpoint.
-
-Example:
-  curl ${url.origin}/health
+Try it:
+  curl -X POST ${url.origin}/render -H "Content-Type: application/json" -d '{"source":"graph TD; A-->B","format":"mermaid"}'
 `;
           return new Response(usage, {
             status: 200,

@@ -59,7 +59,7 @@ describe("Integration Tests", () => {
       const body = await res.text();
       expect(body).toContain("Diashort");
       expect(body).toContain("POST /render");
-      expect(body).toContain("GET /d/:shortlink");
+      expect(body).toContain("/d/:id");
     });
   });
 
