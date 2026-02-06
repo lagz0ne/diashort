@@ -43,9 +43,7 @@ const diffStyles = `
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: #fafafa;
   }
-  @media (prefers-color-scheme: dark) {
-    body { background: #1a1a1a; color: #eee; }
-  }
+  html[data-theme="dark"] body { background: #1a1a1a; color: #eee; }
 
   .diff-container {
     display: flex;
@@ -79,9 +77,7 @@ const diffStyles = `
     border-bottom: none;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .diff-panel { border-color: #333; }
-  }
+  html[data-theme="dark"] .diff-panel { border-color: #333; }
 
   .panel-header {
     padding: 8px 16px;
@@ -92,9 +88,7 @@ const diffStyles = `
     text-align: center;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .panel-header { background: #2a2a2a; border-color: #333; }
-  }
+  html[data-theme="dark"] .panel-header { background: #2a2a2a; border-color: #333; }
 
   .panel-content {
     flex: 1;
@@ -110,7 +104,15 @@ const diffStyles = `
     position: absolute;
     top: 0;
     left: 0;
+    user-select: none;
+    -webkit-user-select: none;
   }
+  .panel-content.selectable svg {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .panel-content.selectable { cursor: text; }
+  .panel-content.selectable.dragging { cursor: text; }
 
   .controls {
     position: fixed;
@@ -126,9 +128,7 @@ const diffStyles = `
     z-index: 1000;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .controls { background: rgba(40, 40, 40, 0.9); }
-  }
+  html[data-theme="dark"] .controls { background: rgba(40, 40, 40, 0.9); }
 
   .controls button {
     width: 32px;
@@ -145,15 +145,13 @@ const diffStyles = `
     transition: background 0.15s;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .controls button { color: #eee; }
-  }
+  html[data-theme="dark"] .controls button { color: #eee; }
 
   .controls button:hover { background: rgba(0, 0, 0, 0.1); }
 
-  @media (prefers-color-scheme: dark) {
-    .controls button:hover { background: rgba(255, 255, 255, 0.1); }
-  }
+  html[data-theme="dark"] .controls button:hover { background: rgba(255, 255, 255, 0.1); }
+  .controls button.active { background: rgba(0, 102, 204, 0.2); }
+  html[data-theme="dark"] .controls button.active { background: rgba(0, 102, 204, 0.3); }
 
   .controls .separator {
     width: 1px;
@@ -161,9 +159,7 @@ const diffStyles = `
     margin: 4px 2px;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .controls .separator { background: #555; }
-  }
+  html[data-theme="dark"] .controls .separator { background: #555; }
 
   #loading {
     color: #666;
@@ -174,9 +170,7 @@ const diffStyles = `
     transform: translate(-50%, -50%);
   }
 
-  @media (prefers-color-scheme: dark) {
-    #loading { color: #999; }
-  }
+  html[data-theme="dark"] #loading { color: #999; }
 `;
 
 const syncedViewportScript = `
@@ -290,6 +284,7 @@ const syncedViewportScript = `
 
       panel.addEventListener('mousedown', function(e) {
         if (e.target.closest('.controls')) return;
+        if (panel.classList.contains('selectable')) return;
         isDragging = true;
         lastX = e.clientX;
         lastY = e.clientY;
@@ -298,6 +293,7 @@ const syncedViewportScript = `
 
       panel.addEventListener('touchstart', function(e) {
         if (e.target.closest('.controls')) return;
+        if (panel.classList.contains('selectable')) return;
         if (e.touches.length === 1) {
           isDragging = true;
           lastX = e.touches[0].clientX;
@@ -373,6 +369,13 @@ const syncedViewportScript = `
 
     document.getElementById('zoom-reset').addEventListener('click', resetView);
 
+    document.getElementById('select-toggle').addEventListener('click', function() {
+      panels.forEach(function(p) { p.classList.toggle('selectable'); });
+      var isSelectable = panels[0] && panels[0].classList.contains('selectable');
+      this.classList.toggle('active', isSelectable);
+      this.setAttribute('aria-label', isSelectable ? 'Disable text selection' : 'Enable text selection');
+    });
+
     window.addEventListener('resize', function() {
       // Recalculate home state on resize
       const panel = panels[0];
@@ -407,6 +410,9 @@ const controlsHtml = `
     <button id="zoom-out" aria-label="Zoom out">&minus;</button>
     <div class="separator"></div>
     <button id="layout-toggle" aria-label="Toggle layout">&#x25EB;</button>
+    <div class="separator"></div>
+    <button id="select-toggle" aria-label="Enable text selection">T</button>
+    <button id="theme-toggle" aria-label="Toggle dark mode">&#x263E;</button>
   </div>
 `;
 
@@ -503,13 +509,28 @@ export const diffViewerAtom = atom({
     const beforeSource = \`${escapedBefore}\`;
     const afterSource = \`${escapedAfter}\`;
 
-    function getTheme() {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
+    function getEffectiveTheme() {
+      const stored = localStorage.getItem('theme-preference');
+      if (stored === 'dark' || stored === 'light') return stored;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    function applyThemeUI() {
+      const theme = getEffectiveTheme();
+      document.documentElement.setAttribute('data-theme', theme);
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.innerHTML = theme === 'dark' ? '\\u2600' : '\\u263E';
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      }
     }
 
     async function renderBoth() {
-      const theme = getTheme();
-      mermaid.initialize({ startOnLoad: false, theme: theme });
+      const theme = getEffectiveTheme();
+      const mermaidTheme = theme === 'dark' ? 'dark' : 'default';
+      mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
+
+      applyThemeUI();
 
       const panelBefore = document.getElementById('panel-before');
       const panelAfter = document.getElementById('panel-after');
@@ -528,7 +549,17 @@ export const diffViewerAtom = atom({
       }
     }
 
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if (!localStorage.getItem('theme-preference')) {
+        document.getElementById('panel-before').innerHTML = '<div id="loading">Loading...</div>';
+        document.getElementById('panel-after').innerHTML = '<div id="loading">Loading...</div>';
+        renderBoth();
+      }
+    });
+
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+      const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme-preference', next);
       document.getElementById('panel-before').innerHTML = '<div id="loading">Loading...</div>';
       document.getElementById('panel-after').innerHTML = '<div id="loading">Loading...</div>';
       renderBoth();
@@ -578,21 +609,39 @@ export const diffViewerAtom = atom({
     const afterLightSvg = \`${escapedAfterLight}\`;
     const afterDarkSvg = \`${escapedAfterDark}\`;
 
-    function isDark() {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    function getEffectiveTheme() {
+      const stored = localStorage.getItem('theme-preference');
+      if (stored === 'dark' || stored === 'light') return stored;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
     function render() {
+      const theme = getEffectiveTheme();
+      document.documentElement.setAttribute('data-theme', theme);
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.innerHTML = theme === 'dark' ? '\\u2600' : '\\u263E';
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      }
+
       const panelBefore = document.getElementById('panel-before');
       const panelAfter = document.getElementById('panel-after');
 
-      panelBefore.innerHTML = isDark() ? beforeDarkSvg : beforeLightSvg;
-      panelAfter.innerHTML = isDark() ? afterDarkSvg : afterLightSvg;
+      panelBefore.innerHTML = theme === 'dark' ? beforeDarkSvg : beforeLightSvg;
+      panelAfter.innerHTML = theme === 'dark' ? afterDarkSvg : afterLightSvg;
 
       initSyncedViewport();
     }
 
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if (!localStorage.getItem('theme-preference')) render();
+    });
+
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+      const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme-preference', next);
+      render();
+    });
 
     initLayout();
     render();

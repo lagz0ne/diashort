@@ -32,9 +32,7 @@ const baseStyles = `
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #fafafa;
     }
-    @media (prefers-color-scheme: dark) {
-      body { background: #1a1a1a; color: #eee; }
-    }
+    html[data-theme="dark"] body { background: #1a1a1a; color: #eee; }
     #diagram {
       width: 100vw;
       height: 100vh;
@@ -48,7 +46,15 @@ const baseStyles = `
       position: absolute;
       top: 0;
       left: 0;
+      user-select: none;
+      -webkit-user-select: none;
     }
+    #diagram.selectable svg {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    #diagram.selectable { cursor: text; }
+    #diagram.selectable.dragging { cursor: text; }
     #loading {
       color: #666;
       font-size: 0.875rem;
@@ -72,10 +78,8 @@ const baseStyles = `
       left: 50%;
       transform: translate(-50%, -50%);
     }
-    @media (prefers-color-scheme: dark) {
-      #loading { color: #999; }
-      #error { background: #2d1f1f; }
-    }
+    html[data-theme="dark"] #loading { color: #999; }
+    html[data-theme="dark"] #error { background: #2d1f1f; }
     .controls {
       position: fixed;
       bottom: 16px;
@@ -88,9 +92,7 @@ const baseStyles = `
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
       z-index: 1000;
     }
-    @media (prefers-color-scheme: dark) {
-      .controls { background: rgba(40, 40, 40, 0.9); }
-    }
+    html[data-theme="dark"] .controls { background: rgba(40, 40, 40, 0.9); }
     .controls button {
       width: 32px;
       height: 32px;
@@ -105,17 +107,21 @@ const baseStyles = `
       color: #333;
       transition: background 0.15s;
     }
-    @media (prefers-color-scheme: dark) {
-      .controls button { color: #eee; }
-    }
+    html[data-theme="dark"] .controls button { color: #eee; }
     .controls button:hover { background: rgba(0, 0, 0, 0.1); }
-    @media (prefers-color-scheme: dark) {
-      .controls button:hover { background: rgba(255, 255, 255, 0.1); }
-    }
+    html[data-theme="dark"] .controls button:hover { background: rgba(255, 255, 255, 0.1); }
+    .controls button.active { background: rgba(0, 102, 204, 0.2); }
+    html[data-theme="dark"] .controls button.active { background: rgba(0, 102, 204, 0.3); }
     .controls button:focus {
       outline: 2px solid #0066cc;
       outline-offset: 1px;
     }
+    .controls .separator {
+      width: 1px;
+      background: #ddd;
+      margin: 4px 2px;
+    }
+    html[data-theme="dark"] .controls .separator { background: #555; }
     @media (pointer: coarse) {
       .controls button { width: 44px; height: 44px; }
     }
@@ -129,6 +135,9 @@ const controlsHtml = `
     <button id="zoom-in" aria-label="Zoom in">+</button>
     <button id="zoom-reset" aria-label="Reset view">&#x21BA;</button>
     <button id="zoom-out" aria-label="Zoom out">&minus;</button>
+    <div class="separator"></div>
+    <button id="select-toggle" aria-label="Enable text selection">T</button>
+    <button id="theme-toggle" aria-label="Toggle dark mode">&#x263E;</button>
   </div>
 `;
 
@@ -234,6 +243,7 @@ const viewportScript = `
     // Mouse drag
     container.addEventListener('mousedown', function(e) {
       if (e.target.closest('.controls')) return;
+      if (container.classList.contains('selectable')) return;
       isDragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -257,6 +267,7 @@ const viewportScript = `
     // Touch events
     container.addEventListener('touchstart', function(e) {
       if (e.target.closest('.controls')) return;
+      if (container.classList.contains('selectable')) return;
       if (e.touches.length === 1) {
         isDragging = true;
         lastX = e.touches[0].clientX;
@@ -309,6 +320,13 @@ const viewportScript = `
 
     document.getElementById('zoom-reset').addEventListener('click', resetView);
 
+    document.getElementById('select-toggle').addEventListener('click', function() {
+      container.classList.toggle('selectable');
+      var isSelectable = container.classList.contains('selectable');
+      this.classList.toggle('active', isSelectable);
+      this.setAttribute('aria-label', isSelectable ? 'Disable text selection' : 'Enable text selection');
+    });
+
     // Recalculate on resize
     window.addEventListener('resize', function() {
       const svg = document.querySelector('#diagram svg');
@@ -357,18 +375,29 @@ export const htmlGeneratorAtom = atom({
     const source = \`${escapedSource}\`;
     const shortlink = '${shortlink}';
 
-    function getTheme() {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
+    function getEffectiveTheme() {
+      const stored = localStorage.getItem('theme-preference');
+      if (stored === 'dark' || stored === 'light') return stored;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
-    function getCacheKey() {
-      return 'diagram-' + shortlink + '-' + getTheme();
+    function applyThemeUI() {
+      const theme = getEffectiveTheme();
+      document.documentElement.setAttribute('data-theme', theme);
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.innerHTML = theme === 'dark' ? '\\u2600' : '\\u263E';
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      }
     }
 
     async function render() {
       const container = document.getElementById('diagram');
-      const theme = getTheme();
-      const cacheKey = getCacheKey();
+      const theme = getEffectiveTheme();
+      const mermaidTheme = theme === 'dark' ? 'dark' : 'default';
+      const cacheKey = 'diagram-' + shortlink + '-' + theme;
+
+      applyThemeUI();
 
       // Check localStorage cache
       const cached = localStorage.getItem(cacheKey);
@@ -379,7 +408,7 @@ export const htmlGeneratorAtom = atom({
       }
 
       try {
-        mermaid.initialize({ startOnLoad: false, theme: theme });
+        mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
         const { svg } = await mermaid.render('mermaid-diagram', source);
         container.innerHTML = svg;
         localStorage.setItem(cacheKey, svg);
@@ -389,8 +418,16 @@ export const htmlGeneratorAtom = atom({
       }
     }
 
-    // Re-render when color scheme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if (!localStorage.getItem('theme-preference')) {
+        document.getElementById('diagram').innerHTML = '<div id="loading">Loading diagram...</div>';
+        render();
+      }
+    });
+
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+      const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme-preference', next);
       document.getElementById('diagram').innerHTML = '<div id="loading">Loading diagram...</div>';
       render();
     });
@@ -439,18 +476,34 @@ export const htmlGeneratorAtom = atom({
     const lightSvg = \`${escapedLightSvg}\`;
     const darkSvg = \`${escapedDarkSvg}\`;
 
-    function isDark() {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    function getEffectiveTheme() {
+      const stored = localStorage.getItem('theme-preference');
+      if (stored === 'dark' || stored === 'light') return stored;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
     function render() {
+      const theme = getEffectiveTheme();
+      document.documentElement.setAttribute('data-theme', theme);
       const container = document.getElementById('diagram');
-      container.innerHTML = isDark() ? darkSvg : lightSvg;
+      container.innerHTML = theme === 'dark' ? darkSvg : lightSvg;
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.innerHTML = theme === 'dark' ? '\\u2600' : '\\u263E';
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      }
       initViewport();
     }
 
-    // Re-render when color scheme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if (!localStorage.getItem('theme-preference')) render();
+    });
+
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+      const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme-preference', next);
+      render();
+    });
 
     render();
   </script>
