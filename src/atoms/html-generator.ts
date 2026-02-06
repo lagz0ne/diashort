@@ -393,9 +393,7 @@ export const htmlGeneratorAtom = atom({
 
     async function render() {
       const container = document.getElementById('diagram');
-      const theme = getEffectiveTheme();
-      const mermaidTheme = theme === 'dark' ? 'dark' : 'default';
-      const cacheKey = 'diagram-' + shortlink + '-' + theme;
+      const cacheKey = 'diagram-' + shortlink;
 
       applyThemeUI();
 
@@ -408,7 +406,7 @@ export const htmlGeneratorAtom = atom({
       }
 
       try {
-        mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
         const { svg } = await mermaid.render('mermaid-diagram', source);
         container.innerHTML = svg;
         localStorage.setItem(cacheKey, svg);
@@ -419,17 +417,13 @@ export const htmlGeneratorAtom = atom({
     }
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-      if (!localStorage.getItem('theme-preference')) {
-        document.getElementById('diagram').innerHTML = '<div id="loading">Loading diagram...</div>';
-        render();
-      }
+      if (!localStorage.getItem('theme-preference')) applyThemeUI();
     });
 
     document.getElementById('theme-toggle').addEventListener('click', function() {
       const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
       localStorage.setItem('theme-preference', next);
-      document.getElementById('diagram').innerHTML = '<div id="loading">Loading diagram...</div>';
-      render();
+      applyThemeUI();
     });
 
     render();

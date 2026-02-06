@@ -526,9 +526,7 @@ export const diffViewerAtom = atom({
     }
 
     async function renderBoth() {
-      const theme = getEffectiveTheme();
-      const mermaidTheme = theme === 'dark' ? 'dark' : 'default';
-      mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
+      mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
       applyThemeUI();
 
@@ -550,19 +548,13 @@ export const diffViewerAtom = atom({
     }
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-      if (!localStorage.getItem('theme-preference')) {
-        document.getElementById('panel-before').innerHTML = '<div id="loading">Loading...</div>';
-        document.getElementById('panel-after').innerHTML = '<div id="loading">Loading...</div>';
-        renderBoth();
-      }
+      if (!localStorage.getItem('theme-preference')) applyThemeUI();
     });
 
     document.getElementById('theme-toggle').addEventListener('click', function() {
       const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
       localStorage.setItem('theme-preference', next);
-      document.getElementById('panel-before').innerHTML = '<div id="loading">Loading...</div>';
-      document.getElementById('panel-after').innerHTML = '<div id="loading">Loading...</div>';
-      renderBoth();
+      applyThemeUI();
     });
 
     initLayout();
