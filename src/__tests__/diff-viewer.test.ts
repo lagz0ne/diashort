@@ -4,22 +4,24 @@ import { createScope } from "@pumped-fn/lite";
 import { diffViewerAtom } from "../atoms/diff-viewer";
 
 describe("DiffViewer", () => {
-  it("generates mermaid diff HTML with side-by-side layout", async () => {
+  it("generates mermaid diff HTML with pre-rendered SVGs", async () => {
     const scope = createScope({ tags: [] });
     const viewer = await scope.resolve(diffViewerAtom);
 
     const html = viewer.generateMermaidDiff({
-      before: "graph TD; A-->B;",
-      after: "graph TD; A-->B-->C;",
+      beforeSvg: "<svg>before-mermaid</svg>",
+      afterSvg: "<svg>after-mermaid</svg>",
       shortlink: "abc12345",
     });
 
     expect(html).toContain("<!DOCTYPE html>");
     expect(html).toContain("Before");
     expect(html).toContain("After");
-    expect(html).toContain("graph TD; A-->B;");
-    expect(html).toContain("graph TD; A-->B-->C;");
+    expect(html).toContain("before-mermaid");
+    expect(html).toContain("after-mermaid");
     expect(html).toContain("syncedViewport");
+    // No CDN mermaid script
+    expect(html).not.toContain("cdn.jsdelivr.net/npm/mermaid");
 
     await scope.dispose();
   });
@@ -51,8 +53,8 @@ describe("DiffViewer", () => {
     const viewer = await scope.resolve(diffViewerAtom);
 
     const html = viewer.generateMermaidDiff({
-      before: "graph TD; A-->B;",
-      after: "graph TD; A-->B-->C;",
+      beforeSvg: "<svg>before</svg>",
+      afterSvg: "<svg>after</svg>",
       shortlink: "abc12345",
     });
 

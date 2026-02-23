@@ -5,120 +5,56 @@ title: HTML Generator
 type: component
 category: feature
 parent: c3-1
-summary: Generate HTML pages with embedded diagram source for client-side rendering
+summary: Generate HTML pages with server-rendered SVG inlined for instant display
 ---
 
 # HTML Generator
 
-Generates complete HTML pages that render diagrams client-side. Includes Mermaid.js for Mermaid diagrams and D2 WASM for D2 diagrams.
+Generates complete HTML pages with pre-rendered SVG diagrams inlined. Both Mermaid and D2 diagrams are server-rendered before being passed to the generator.
 
 ## Dependencies
 
-```mermaid
-graph LR
-    HTMLGen["HTML Generator"] --> MermaidCDN["Mermaid.js CDN"]
-    HTMLGen --> D2WASM["D2 WASM Bundle"]
-```
+None (pure template generation — receives pre-rendered SVGs as input).
 
 ## Interface
 
 ```typescript
 interface HTMLGenerator {
-  generate(source: string, format: "mermaid" | "d2"): string;
+  generateMermaid(svg: string, shortlink: string, options?: HTMLGeneratorOptions): string;
+  generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string;
 }
 ```
 
 ## Behavior
 
-```mermaid
-flowchart TB
-    Input["source + format"]
-
-    subgraph Generator["HTML Generator"]
-        Template["Base HTML Template"]
-        Mermaid["Mermaid.js CDN Script"]
-        D2["D2 WASM Loader"]
-        Source["Embedded Source"]
-        LocalStorage["LocalStorage Cache Logic"]
-    end
-
-    Output["Complete HTML Page"]
-
-    Input --> Generator
-    Generator --> Output
-```
-
-## HTML Structure
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Diagram - {shortlink}</title>
-  <style>/* responsive styles */</style>
-</head>
-<body>
-  <div id="diagram"></div>
-
-  <!-- For Mermaid -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-
-  <!-- For D2 -->
-  <script src="/d2-wasm.js"></script>
-
-  <script>
-    const source = `{escaped_source}`;
-    const format = "{format}";
-
-    // LocalStorage caching
-    const cacheKey = `diagram-{shortlink}`;
-    const cached = localStorage.getItem(cacheKey);
-
-    if (cached) {
-      document.getElementById('diagram').innerHTML = cached;
-    } else {
-      // Render based on format
-      if (format === 'mermaid') {
-        mermaid.render('mermaid-svg', source).then(({svg}) => {
-          document.getElementById('diagram').innerHTML = svg;
-          localStorage.setItem(cacheKey, svg);
-        });
-      } else {
-        // D2 WASM rendering
-        d2.render(source).then(svg => {
-          document.getElementById('diagram').innerHTML = svg;
-          localStorage.setItem(cacheKey, svg);
-        });
-      }
-    }
-  </script>
-</body>
-</html>
-```
+| Format | Rendering | Dark Mode |
+|--------|-----------|-----------|
+| Mermaid | Single SVG inlined, no CDN script | CSS `filter: invert(1) hue-rotate(180deg)` |
+| D2 | Light + dark SVGs inlined | Swaps SVG based on theme preference |
 
 ## Features
 
 | Feature | Implementation |
 |---------|----------------|
 | Responsive | CSS flexbox centering, max-width constraints |
-| LocalStorage | Caches rendered SVG for instant repeat views |
-| CDN caching | HTML is static, cacheable forever |
-| Dark mode | Respects `prefers-color-scheme` |
+| Dark mode | CSS filter for Mermaid, dual SVGs for D2 |
+| Theme persistence | `localStorage` for `theme-preference` only |
+| Version picker | Dropdown to switch between diagram versions |
+| Compare overlay | Fetches SVGs from `/e/` endpoint for both formats |
+| OpenGraph tags | Embed URL for link previews (when embedUrl provided) |
 | Error handling | Shows parse errors in UI |
 
 ## References
 
 - `htmlGeneratorAtom` - `src/atoms/html-generator.ts`
-- Template string - `src/atoms/html-generator.ts`
 
 ## Testing Strategy
 
 **Unit scope:**
-- HTML contains source
-- Format detection selects correct renderer script
+- HTML contains SVG content
 - Source is properly escaped (XSS prevention)
+- No CDN mermaid script tag in output
+- No localStorage SVG caching in output
 
 **Integration scope:**
 - Rendered page in headless browser (optional)

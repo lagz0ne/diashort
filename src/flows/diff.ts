@@ -2,6 +2,7 @@ import { flow } from "@pumped-fn/lite";
 import { diffStoreAtom, type CreateDiffInput } from "../atoms/diff-store";
 import { diffViewerAtom } from "../atoms/diff-viewer";
 import { d2RendererAtom } from "../atoms/d2-renderer";
+import { optionalMermaidRendererAtom } from "../atoms/mermaid-renderer";
 import { loggerAtom } from "../atoms/logger";
 import { baseUrlTag, requestOriginTag } from "../config/tags";
 import type { DiagramFormat } from "../atoms/diagram-store";
@@ -124,16 +125,25 @@ function parseViewDiffInput(input: unknown): ViewDiffInput {
   return { shortlink: obj.shortlink };
 }
 
+export class DiffRenderNotAvailableError extends Error {
+  public readonly statusCode = 503;
+  constructor(message: string) {
+    super(message);
+    this.name = "DiffRenderNotAvailableError";
+  }
+}
+
 export const viewDiffFlow = flow({
   name: "viewDiff",
   deps: {
     diffStore: diffStoreAtom,
     diffViewer: diffViewerAtom,
     d2Renderer: d2RendererAtom,
+    mermaidRenderer: optionalMermaidRendererAtom,
     logger: loggerAtom,
   },
   parse: (raw: unknown) => parseViewDiffInput(raw),
-  factory: async (ctx, { diffStore, diffViewer, d2Renderer, logger }): Promise<ViewDiffResult> => {
+  factory: async (ctx, { diffStore, diffViewer, d2Renderer, mermaidRenderer, logger }): Promise<ViewDiffResult> => {
     const { shortlink } = ctx.input;
 
     logger.debug({ shortlink }, "Viewing diff");
@@ -148,9 +158,18 @@ export const viewDiffFlow = flow({
     let html: string;
 
     if (diff.format === "mermaid") {
+      if (!mermaidRenderer) {
+        throw new DiffRenderNotAvailableError("Mermaid SSR not configured. Set CHROME_PATH environment variable.");
+      }
+
+      const [beforeSvg, afterSvg] = await Promise.all([
+        mermaidRenderer.render(diff.before),
+        mermaidRenderer.render(diff.after),
+      ]);
+
       html = diffViewer.generateMermaidDiff({
-        before: diff.before,
-        after: diff.after,
+        beforeSvg,
+        afterSvg,
         shortlink,
       });
     } else {

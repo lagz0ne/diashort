@@ -80,7 +80,10 @@ describe("Diff Flows", () => {
   });
 
   describe("viewDiffFlow", () => {
-    it("returns HTML for existing diff", async () => {
+    it("throws 503 for mermaid diff without CHROME_PATH", async () => {
+      // Mermaid diffs require server-side rendering via CHROME_PATH
+      if (process.env.CHROME_PATH) return;
+
       const scope = createScope({
         tags: [
           diagramConfigTag({
@@ -104,17 +107,14 @@ describe("Diff Flows", () => {
       });
       await createCtx.close();
 
-      // View the diff
+      // View the diff — should throw because no mermaid renderer
       const viewCtx = scope.createContext({ tags: [] });
-      const result = await viewCtx.exec({
-        flow: viewDiffFlow,
-        rawInput: { shortlink: created.shortlink },
-      });
-
-      expect(result.html).toContain("<!DOCTYPE html>");
-      expect(result.html).toContain("Before");
-      expect(result.html).toContain("After");
-      expect(result.contentType).toBe("text/html");
+      await expect(
+        viewCtx.exec({
+          flow: viewDiffFlow,
+          rawInput: { shortlink: created.shortlink },
+        })
+      ).rejects.toThrow("Mermaid SSR not configured");
 
       await viewCtx.close();
       await scope.dispose();

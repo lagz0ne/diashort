@@ -2,6 +2,7 @@ import { flow } from "@pumped-fn/lite";
 import { diagramStoreAtom } from "../atoms/diagram-store";
 import { htmlGeneratorAtom, type VersionInfo } from "../atoms/html-generator";
 import { d2RendererAtom } from "../atoms/d2-renderer";
+import { optionalMermaidRendererAtom } from "../atoms/mermaid-renderer";
 import { loggerAtom } from "../atoms/logger";
 import { baseUrlTag, requestOriginTag } from "../config/tags";
 
@@ -43,16 +44,25 @@ function parseViewInput(input: unknown): ViewInput {
   return result;
 }
 
+export class RenderNotAvailableError extends Error {
+  public readonly statusCode = 503;
+  constructor(message: string) {
+    super(message);
+    this.name = "RenderNotAvailableError";
+  }
+}
+
 export const viewFlow = flow({
   name: "view",
   deps: {
     diagramStore: diagramStoreAtom,
     htmlGenerator: htmlGeneratorAtom,
     d2Renderer: d2RendererAtom,
+    mermaidRenderer: optionalMermaidRendererAtom,
     logger: loggerAtom,
   },
   parse: (raw: unknown) => parseViewInput(raw),
-  factory: async (ctx, { diagramStore, htmlGenerator, d2Renderer, logger }): Promise<ViewOutput> => {
+  factory: async (ctx, { diagramStore, htmlGenerator, d2Renderer, mermaidRenderer, logger }): Promise<ViewOutput> => {
     const { input } = ctx;
 
     const configuredBaseUrl = ctx.data.seekTag(baseUrlTag);
@@ -111,7 +121,13 @@ export const viewFlow = flow({
       html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl, versionInfo });
       logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated D2 HTML page");
     } else {
-      html = htmlGenerator.generateMermaid(versionData.source, input.shortlink, { versionInfo });
+      if (!mermaidRenderer) {
+        throw new RenderNotAvailableError("Mermaid SSR not configured. Set CHROME_PATH environment variable.");
+      }
+
+      const svg = await mermaidRenderer.render(versionData.source);
+      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}/${input.versionName}` : undefined;
+      html = htmlGenerator.generateMermaid(svg, input.shortlink, { embedUrl, versionInfo });
       logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated Mermaid HTML page");
     }
 

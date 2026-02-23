@@ -2,8 +2,8 @@
 import { atom } from "@pumped-fn/lite";
 
 export interface MermaidDiffInput {
-  before: string;
-  after: string;
+  beforeSvg: string;
+  afterSvg: string;
   shortlink: string;
 }
 
@@ -507,8 +507,8 @@ export const diffViewerAtom = atom({
   factory: (): DiffViewer => ({
     generateMermaidDiff(input: MermaidDiffInput): string {
       const title = `Diff - ${input.shortlink}`;
-      const escapedBefore = escapeJs(input.before);
-      const escapedAfter = escapeJs(input.after);
+      const escapedBeforeSvg = escapeJs(input.beforeSvg);
+      const escapedAfterSvg = escapeJs(input.afterSvg);
 
       return `<!DOCTYPE html>
 <html lang="en">
@@ -535,13 +535,12 @@ export const diffViewerAtom = atom({
   </div>
   ${controlsHtml}
 
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <script>
     ${syncedViewportScript}
     ${layoutScript}
 
-    const beforeSource = \`${escapedBefore}\`;
-    const afterSource = \`${escapedAfter}\`;
+    const beforeSvg = \`${escapedBeforeSvg}\`;
+    const afterSvg = \`${escapedAfterSvg}\`;
 
     function getEffectiveTheme() {
       const stored = localStorage.getItem('theme-preference');
@@ -549,7 +548,7 @@ export const diffViewerAtom = atom({
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
-    function applyThemeUI() {
+    function render() {
       const theme = getEffectiveTheme();
       document.documentElement.setAttribute('data-theme', theme);
       const btn = document.getElementById('theme-toggle');
@@ -557,42 +556,26 @@ export const diffViewerAtom = atom({
         btn.innerHTML = theme === 'dark' ? '\\u2600' : '\\u263E';
         btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
       }
-    }
-
-    async function renderBoth() {
-      mermaid.initialize({ startOnLoad: false, theme: 'default' });
-
-      applyThemeUI();
 
       const panelBefore = document.getElementById('panel-before');
       const panelAfter = document.getElementById('panel-after');
-
-      try {
-        const [beforeResult, afterResult] = await Promise.all([
-          mermaid.render('mermaid-before', beforeSource),
-          mermaid.render('mermaid-after', afterSource),
-        ]);
-        panelBefore.innerHTML = beforeResult.svg;
-        panelAfter.innerHTML = afterResult.svg;
-        requestAnimationFrame(function() { initSyncedViewport(); });
-      } catch (err) {
-        panelBefore.innerHTML = '<div style="color: red; padding: 16px;">' + err.message + '</div>';
-        panelAfter.innerHTML = '<div style="color: red; padding: 16px;">' + err.message + '</div>';
-      }
+      panelBefore.innerHTML = beforeSvg;
+      panelAfter.innerHTML = afterSvg;
+      requestAnimationFrame(function() { initSyncedViewport(); });
     }
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-      if (!localStorage.getItem('theme-preference')) applyThemeUI();
+      if (!localStorage.getItem('theme-preference')) render();
     });
 
     document.getElementById('theme-toggle').addEventListener('click', function() {
       const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
       localStorage.setItem('theme-preference', next);
-      applyThemeUI();
+      render();
     });
 
     initLayout();
-    renderBoth();
+    render();
   </script>
 </body>
 </html>`;

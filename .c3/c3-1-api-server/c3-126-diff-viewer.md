@@ -10,7 +10,7 @@ summary: Generate HTML pages for side-by-side diagram comparison with synced zoo
 
 # Diff Viewer
 
-Generates complete HTML pages for comparing two diagrams side-by-side. Supports both Mermaid (client-side rendered) and D2 (pre-rendered SVG) formats with synchronized viewport controls.
+Generates complete HTML pages for comparing two diagrams side-by-side. Both Mermaid and D2 formats receive pre-rendered SVGs from server-side rendering, with synchronized viewport controls.
 
 ## Interface
 
@@ -18,6 +18,20 @@ Generates complete HTML pages for comparing two diagrams side-by-side. Supports 
 interface DiffViewer {
   generateMermaidDiff(input: MermaidDiffInput): string;  // Returns HTML
   generateD2Diff(input: D2DiffInput): string;            // Returns HTML
+}
+
+interface MermaidDiffInput {
+  beforeSvg: string;   // Pre-rendered SVG
+  afterSvg: string;    // Pre-rendered SVG
+  shortlink: string;
+}
+
+interface D2DiffInput {
+  beforeLightSvg: string;
+  beforeDarkSvg: string;
+  afterLightSvg: string;
+  afterDarkSvg: string;
+  shortlink: string;
 }
 ```
 
@@ -34,11 +48,11 @@ interface DiffViewer {
 
 ## Behavior
 
-| Format | Rendering |
-|--------|-----------|
-| Mermaid | Client-side via Mermaid.js CDN, re-renders on theme change |
-| D2 | Pre-rendered SVG (4 variants: before/after x light/dark), swaps on theme change |
+| Format | Rendering | Dark Mode |
+|--------|-----------|-----------|
+| Mermaid | Pre-rendered before/after SVGs inlined | CSS filter inversion |
+| D2 | Pre-rendered 4 SVG variants (before/after x light/dark) | Swaps on theme change |
 
 ## References
 
-- `diffViewerAtom` - `src/atoms/diff-viewer.ts:471`
+- `diffViewerAtom` - `src/atoms/diff-viewer.ts`

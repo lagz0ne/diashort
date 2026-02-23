@@ -3,9 +3,9 @@ import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requ
 import { optionalMermaidRendererAtom } from "./atoms/mermaid-renderer";
 import { AuthError } from "./extensions/auth";
 import { createFlow, ValidationError, ConflictError } from "./flows/create";
-import { viewFlow, NotFoundError } from "./flows/view";
+import { viewFlow, NotFoundError, RenderNotAvailableError } from "./flows/view";
 import { embedFlow, EmbedNotSupportedError, EmbedRenderError } from "./flows/embed";
-import { createDiffFlow, viewDiffFlow, DiffValidationError, DiffNotFoundError } from "./flows/diff";
+import { createDiffFlow, viewDiffFlow, DiffValidationError, DiffNotFoundError, DiffRenderNotAvailableError } from "./flows/diff";
 import { loggerAtom } from "./atoms/logger";
 import { diagramStoreAtom, DiagramNotFoundError } from "./atoms/diagram-store";
 import { diffStoreAtom } from "./atoms/diff-store";
@@ -122,6 +122,13 @@ function mapErrorToResponse(error: unknown): Response {
   if (error instanceof DiffNotFoundError) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (error instanceof RenderNotAvailableError || error instanceof DiffRenderNotAvailableError) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 503,
       headers: { "Content-Type": "application/json" },
     });
   }

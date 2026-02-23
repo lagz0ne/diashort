@@ -14,7 +14,7 @@ export interface VersionInfo {
 }
 
 export interface HTMLGenerator {
-  generateMermaid(source: string, shortlink: string, options?: HTMLGeneratorOptions): string;
+  generateMermaid(svg: string, shortlink: string, options?: HTMLGeneratorOptions): string;
   generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string;
 }
 
@@ -666,19 +666,10 @@ function buildVersionScript(versionInfo: VersionInfo): string {
       panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div><div class="compare-loading">Loading...</div>';
 
       try {
-        if (diagramFormat === 'mermaid') {
-          var res = await fetch('/api/d/' + versionShortlink + '/versions/' + versionName + '/source');
-          var data = await res.json();
-          var mermaidTheme = getEffectiveTheme() === 'dark' ? 'dark' : 'default';
-          mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
-          var result = await mermaid.render('compare-' + panelId + '-' + Date.now(), data.source);
-          panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div>' + result.svg;
-        } else {
-          var theme = getEffectiveTheme();
-          var embedRes = await fetch('/e/' + versionShortlink + '/' + versionName + '?theme=' + theme);
-          var svgText = await embedRes.text();
-          panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div>' + svgText;
-        }
+        var theme = getEffectiveTheme();
+        var embedRes = await fetch('/e/' + versionShortlink + '/' + versionName + '?theme=' + theme);
+        var svgText = await embedRes.text();
+        panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div>' + svgText;
       } catch (e) {
         panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div><div class="compare-loading">Failed to load</div>';
       }
@@ -706,19 +697,30 @@ function buildVersionScript(versionInfo: VersionInfo): string {
 export const htmlGeneratorAtom = atom({
   deps: {},
   factory: (): HTMLGenerator => ({
-    generateMermaid(source: string, shortlink: string, options?: HTMLGeneratorOptions): string {
-      const escapedSource = escapeJs(source);
+    generateMermaid(svg: string, shortlink: string, options?: HTMLGeneratorOptions): string {
       const versionInfo = options?.versionInfo;
-      const versionName = versionInfo?.currentVersion ?? shortlink;
       const title = `Diagram - ${shortlink}`;
       const hasVersions = versionInfo?.hasMultipleVersions ?? false;
+
+      const escapedSvg = escapeJs(svg);
+
+      const embedUrl = options?.embedUrl;
+      const ogTags = embedUrl
+        ? `
+  <meta property="og:type" content="image">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:image" content="${escapeHtml(embedUrl)}">
+  <meta property="og:image:type" content="image/svg+xml">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="${escapeHtml(embedUrl)}">`
+        : "";
 
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>
+  <title>${escapeHtml(title)}</title>${ogTags}
   <style>${baseStyles}${hasVersions ? versionStyles : ""}</style>
 </head>
 <body>
@@ -728,12 +730,10 @@ export const htmlGeneratorAtom = atom({
   ${buildControlsHtml(versionInfo)}
   ${hasVersions ? buildCompareOverlayHtml() : ""}
 
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <script>
     ${viewportScript}
 
-    const source = \`${escapedSource}\`;
-    const shortlink = '${shortlink}';
+    const diagramSvg = \`${escapedSvg}\`;
 
     function getEffectiveTheme() {
       const stored = localStorage.getItem('theme-preference');
@@ -741,49 +741,27 @@ export const htmlGeneratorAtom = atom({
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
-    function applyThemeUI() {
+    function render() {
       const theme = getEffectiveTheme();
       document.documentElement.setAttribute('data-theme', theme);
+      const container = document.getElementById('diagram');
+      container.innerHTML = diagramSvg;
       const btn = document.getElementById('theme-toggle');
       if (btn) {
         btn.innerHTML = theme === 'dark' ? '\\u2600' : '\\u263E';
         btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
       }
-    }
-
-    async function render() {
-      const container = document.getElementById('diagram');
-      const cacheKey = 'diagram-' + shortlink + '-${escapeJs(versionName)}';
-
-      applyThemeUI();
-
-      // Check localStorage cache
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        container.innerHTML = cached;
-        initViewport();
-        return;
-      }
-
-      try {
-        mermaid.initialize({ startOnLoad: false, theme: 'default' });
-        const { svg } = await mermaid.render('mermaid-diagram', source);
-        container.innerHTML = svg;
-        localStorage.setItem(cacheKey, svg);
-        initViewport();
-      } catch (err) {
-        container.innerHTML = '<div id="error">' + err.message + '</div>';
-      }
+      initViewport();
     }
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-      if (!localStorage.getItem('theme-preference')) applyThemeUI();
+      if (!localStorage.getItem('theme-preference')) render();
     });
 
     document.getElementById('theme-toggle').addEventListener('click', function() {
       const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
       localStorage.setItem('theme-preference', next);
-      applyThemeUI();
+      render();
     });
 
     render();
