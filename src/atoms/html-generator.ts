@@ -9,7 +9,6 @@ export interface VersionInfo {
   shortlink: string;
   currentVersion: string;
   versionsApiUrl: string;
-  hasMultipleVersions: boolean;
   format: "mermaid" | "d2";
 }
 
@@ -297,11 +296,12 @@ const versionStyles = `
 `;
 
 function buildControlsHtml(versionInfo?: VersionInfo): string {
-  const versionControls = versionInfo?.hasMultipleVersions
+  // Always include version controls (hidden by default, shown dynamically by JS when multiple versions exist)
+  const versionControls = versionInfo
     ? `
-    <select id="version-picker" aria-label="Select version"></select>
-    <button id="compare-btn" aria-label="Compare versions" title="Compare versions">&#x2194; Compare</button>
-    <div class="separator"></div>`
+    <select id="version-picker" aria-label="Select version" style="display:none"></select>
+    <button id="compare-btn" aria-label="Compare versions" title="Compare versions" style="display:none">&#x2194; Compare</button>
+    <div class="separator" id="version-separator" style="display:none"></div>`
     : "";
 
   return `
@@ -559,9 +559,21 @@ function buildVersionScript(versionInfo: VersionInfo): string {
         const res = await fetch(versionsApiUrl);
         const data = await res.json();
         versionsList = data.versions || [];
+        var hasMultiple = versionsList.length > 1;
+        showVersionControls(hasMultiple);
         populateVersionPicker();
-        populateCompareDropdowns();
+        if (hasMultiple) populateCompareDropdowns();
       } catch (e) { console.error('Failed to load versions', e); }
+    }
+
+    function showVersionControls(show) {
+      var picker = document.getElementById('version-picker');
+      var btn = document.getElementById('compare-btn');
+      var sep = document.getElementById('version-separator');
+      var display = show ? '' : 'none';
+      if (picker) picker.style.display = display;
+      if (btn) btn.style.display = display;
+      if (sep) sep.style.display = display;
     }
 
     function populateVersionPicker() {
@@ -700,8 +712,6 @@ export const htmlGeneratorAtom = atom({
     generateMermaid(svg: string, shortlink: string, options?: HTMLGeneratorOptions): string {
       const versionInfo = options?.versionInfo;
       const title = `Diagram - ${shortlink}`;
-      const hasVersions = versionInfo?.hasMultipleVersions ?? false;
-
       const escapedSvg = escapeJs(svg);
 
       const embedUrl = options?.embedUrl;
@@ -721,14 +731,14 @@ export const htmlGeneratorAtom = atom({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>${ogTags}
-  <style>${baseStyles}${hasVersions ? versionStyles : ""}</style>
+  <style>${baseStyles}${versionInfo ? versionStyles : ""}</style>
 </head>
 <body>
   <div id="diagram">
     <div id="loading">Loading diagram...</div>
   </div>
   ${buildControlsHtml(versionInfo)}
-  ${hasVersions ? buildCompareOverlayHtml() : ""}
+  ${versionInfo ? buildCompareOverlayHtml() : ""}
 
   <script>
     ${viewportScript}
@@ -765,7 +775,7 @@ export const htmlGeneratorAtom = atom({
     });
 
     render();
-    ${hasVersions && versionInfo ? buildVersionScript(versionInfo) : ""}
+    ${versionInfo ? buildVersionScript(versionInfo) : ""}
   </script>
 </body>
 </html>`;
@@ -774,7 +784,6 @@ export const htmlGeneratorAtom = atom({
     generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string {
       const title = `Diagram - ${shortlink}`;
       const versionInfo = options?.versionInfo;
-      const hasVersions = versionInfo?.hasMultipleVersions ?? false;
 
       // Escape SVGs for embedding in script
       const escapedLightSvg = escapeJs(lightSvg);
@@ -797,14 +806,14 @@ export const htmlGeneratorAtom = atom({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>${ogTags}
-  <style>${baseStyles}${hasVersions ? versionStyles : ""}</style>
+  <style>${baseStyles}${versionInfo ? versionStyles : ""}</style>
 </head>
 <body>
   <div id="diagram">
     <div id="loading">Loading diagram...</div>
   </div>
   ${buildControlsHtml(versionInfo)}
-  ${hasVersions ? buildCompareOverlayHtml() : ""}
+  ${versionInfo ? buildCompareOverlayHtml() : ""}
 
   <script>
     ${viewportScript}
@@ -842,7 +851,7 @@ export const htmlGeneratorAtom = atom({
     });
 
     render();
-    ${hasVersions && versionInfo ? buildVersionScript(versionInfo) : ""}
+    ${versionInfo ? buildVersionScript(versionInfo) : ""}
   </script>
 </body>
 </html>`;

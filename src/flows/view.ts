@@ -100,12 +100,10 @@ export const viewFlow = flow({
     // Update access time for retention
     diagramStore.touch(input.shortlink);
 
-    const hasMultipleVersions = diagramStore.hasMultipleVersions(input.shortlink);
     const versionInfo: VersionInfo = {
       shortlink: input.shortlink,
       currentVersion: input.versionName,
       versionsApiUrl: `/api/d/${input.shortlink}/versions`,
-      hasMultipleVersions,
       format: versionData.format,
     };
 
