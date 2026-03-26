@@ -46,3 +46,10 @@ test.png
 
 # Chrome headless shell (downloaded at build time)
 chrome-headless-shell/
+
+# C3 architecture — DB is source of truth, markdown exports are ephemeral
+.c3/**/*.md
+.c3/adr/
+.c3/refs/
+.c3/rules/
+.c3/recipes/
