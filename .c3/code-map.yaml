@@ -1,0 +1,54 @@
+c3-101:
+  - src/__tests__/integration.test.ts
+  - src/__tests__/setup.test.ts
+  - src/server.ts
+c3-102:
+  - src/__tests__/helpers.ts
+  - src/__tests__/helpers/index.ts
+  - src/__tests__/helpers/mocks.ts
+  - src/__tests__/helpers/presets.ts
+  - src/__tests__/helpers/scope.ts
+c3-103:
+  - src/__tests__/config.test.ts
+  - src/config/tags.ts
+c3-106:
+  - src/__tests__/logger.test.ts
+  - src/atoms/logger.ts
+c3-108:
+  - src/extensions/auth.ts
+  - src/flows/create.ts
+  - src/flows/diff.ts
+  - src/flows/embed.ts
+  - src/flows/view.ts
+c3-112:
+  - src/__tests__/create.test.ts
+  - src/atoms/diagram-store.ts
+c3-114:
+  - src/__tests__/create.test.ts
+  - src/flows/create.ts
+c3-116:
+  - src/flows/view.ts
+c3-119:
+  - src/atoms/html-generator.ts
+c3-120:
+  - src/__tests__/render-queue.test.ts
+  - src/atoms/render-queue.ts
+c3-121:
+  - src/__tests__/browser-farm.test.ts
+  - src/atoms/browser-farm.ts
+c3-122:
+  - src/atoms/mermaid-renderer.ts
+c3-123:
+  - src/__tests__/embed.test.ts
+  - src/flows/embed.ts
+c3-124:
+  - src/atoms/d2-renderer.ts
+c3-125:
+  - src/__tests__/diff-store.test.ts
+  - src/atoms/diff-store.ts
+c3-126:
+  - src/__tests__/diff-viewer.test.ts
+  - src/atoms/diff-viewer.ts
+c3-127:
+  - src/__tests__/diff-flow.test.ts
+  - src/flows/diff.ts

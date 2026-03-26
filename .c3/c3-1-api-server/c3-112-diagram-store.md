@@ -1,16 +1,19 @@
 ---
 id: c3-112
-c3-version: 3
 title: Diagram Store
 type: component
 category: feature
 parent: c3-1
-summary: SQLite CRUD for diagram source storage with retention-based cleanup
+goal: SQLite CRUD for diagram source storage with retention-based cleanup.
 ---
 
 # Diagram Store
 
 Provides CRUD operations for diagram source code. Diagrams are stored permanently until cleanup removes old entries based on last access time.
+
+## Goal
+
+SQLite CRUD for diagram source storage with retention-based cleanup.
 
 ## Dependencies
 
@@ -20,7 +23,6 @@ graph LR
     DiagramStore --> Logger["Logger (c3-106)"]
     DiagramStore --> Config["Config Tags (c3-103)"]
 ```
-
 ## Interface
 
 ```typescript
@@ -31,7 +33,6 @@ interface DiagramStore {
   cleanup(): void;          // Delete old diagrams
 }
 ```
-
 ## Behavior
 
 ```mermaid
@@ -55,17 +56,15 @@ sequenceDiagram
         Store->>DB: DELETE WHERE accessedAt < cutoff
     end
 ```
-
 ## References
 
 - `diagramStoreAtom` - `src/atoms/diagram-store.ts`
 - Schema creation - `src/atoms/diagram-store.ts`
-
 ## Testing Strategy
 
 **Unit scope:**
+
 - CRUD operations with in-memory SQLite
 - Cleanup respects retention window
 - Touch updates accessedAt
-
 **Isolation:** Use `:memory:` database path for tests

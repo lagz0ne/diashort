@@ -6,6 +6,7 @@ type: adr
 status: implemented
 date: 2026-01-06
 affects: [c3-0, c3-1, c3-2]
+goal: "(to be filled)"
 ---
 
 # Client-Side Diagram Rendering
@@ -194,3 +195,7 @@ CREATE INDEX idx_diagrams_accessed ON diagrams(accessedAt);
 | `src/flows/render-terminal.ts` | Delete |
 | `src/config/tags.ts` | Remove unused tags, add new ones |
 | `Dockerfile` | Remove Chromium, d2, chafa installs |
+
+## Goal
+
+(to be filled)

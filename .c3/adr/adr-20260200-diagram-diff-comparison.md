@@ -6,6 +6,7 @@ type: adr
 status: implemented
 date: 2026-02-01
 affects: [c3-0, c3-1, c3-2]
+goal: "(to be filled)"
 ---
 
 # Diagram Diff Comparison Feature
@@ -81,3 +82,7 @@ affects: [c3-0, c3-1, c3-2]
 - [x] Synced zoom/pan works across panels
 - [x] Layout toggle (horizontal/vertical) works
 - [x] Theme toggle persists via localStorage
+
+## Goal
+
+(to be filled)

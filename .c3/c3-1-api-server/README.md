@@ -1,18 +1,26 @@
 ---
 id: c3-1
-c3-version: 3
 title: API Server
 type: container
 parent: c3-0
-summary: >
-  HTTP service that stores diagram source code and serves HTML pages for
-  client-side rendering. Also provides embeddable SVG output and diagram diff comparison.
+goal: Store diagram source code and serve rendered output as HTML pages, embeddable SVGs, and side-by-side diffs.
 ---
 
 # API Server
 
 HTTP service built on Bun.serve. Accepts diagram source code, stores in SQLite, returns shortlink. Serves HTML pages that render diagrams client-side using Mermaid.js or D2 WASM. Provides server-side SVG rendering for embedding, and side-by-side diff comparison.
 
+## Goal
+
+Store diagram source code and serve rendered output as HTML pages, embeddable SVGs, and side-by-side diffs.
+
+## Responsibilities
+
+- Accept diagram source via HTTP POST, validate input, persist to SQLite
+- Serve HTML pages that render diagrams client-side (Mermaid.js / D2 WASM)
+- Provide server-side SVG rendering for embedding (D2 CLI, Mermaid browser farm)
+- Create and serve side-by-side diagram diff comparisons
+- Manage shortlink routing with version support
 ## Overview
 
 ```mermaid
@@ -80,31 +88,27 @@ flowchart TB
     MermaidRenderer --> BrowserFarm
     BrowserFarm --> RenderQueue
 ```
-
 ## Components
-
 ### Foundation
-> Primitives others build on. High impact when changed.
 
+> Primitives others build on. High impact when changed.
 | ID | Name | Status | Responsibility |
-|----|------|--------|----------------|
+| --- | --- | --- | --- |
 | c3-101 | Bun Server | active | HTTP entry point, routing, request/response handling |
 | c3-102 | DI Infrastructure | active | @pumped-fn/lite atoms, tags, flows, scopes, contexts |
 | c3-103 | Config Tags | active | Environment-based configuration via tag system |
 | c3-106 | Logger | active | Pino-based structured logging |
-
 ### Auxiliary
+
 > Conventions for using external tools. "How we use X here."
-
 | ID | Name | Status | Responsibility |
-|----|------|--------|----------------|
+| --- | --- | --- | --- |
 | c3-108 | Error Handling | active | Typed error classes with HTTP status code mapping |
-
 ### Feature
-> Domain-specific. Uses Foundation + Auxiliary.
 
+> Domain-specific. Uses Foundation + Auxiliary.
 | ID | Name | Status | Responsibility |
-|----|------|--------|----------------|
+| --- | --- | --- | --- |
 | c3-112 | Diagram Store | active | SQLite CRUD for diagram source storage |
 | c3-114 | Create Flow | active | Validate input -> store source -> return shortlink |
 | c3-116 | View Flow | active | Lookup source -> generate HTML page |
@@ -117,11 +121,10 @@ flowchart TB
 | c3-125 | Diff Store | active | SQLite CRUD for diagram diff pairs |
 | c3-126 | Diff Viewer | active | Generate HTML pages for side-by-side comparison |
 | c3-127 | Diff Flow | active | Create and view diagram comparisons |
-
 ## Fulfillment
 
 | Link (from c3-0) | Fulfilled By | Constraints |
-|------------------|--------------|-------------|
+| --- | --- | --- |
 | POST /render | c3-101 -> c3-114 | Auth if enabled |
 | GET /d/:id | c3-101 -> c3-116 | No auth, CDN-cacheable |
 | GET /e/:id | c3-101 -> c3-123 | No auth, CDN-cacheable |
@@ -129,7 +132,6 @@ flowchart TB
 | GET /diff/:id | c3-101 -> c3-127 | No auth, CDN-cacheable |
 | GET /health | c3-101 | No auth |
 | SQLite integration | c3-112, c3-125 | via c3-2 container |
-
 ## Linkages
 
 ```mermaid
@@ -178,9 +180,8 @@ flowchart LR
     DF -->|"store/lookup"| DFS
     DFS -->|"sources"| DFV
 ```
-
 | From | To | Reasoning |
-|------|-----|-----------|
+| --- | --- | --- |
 | Bun Server -> Flows | DI context | Each request creates isolated execution context |
 | Create Flow -> Diagram Store | Persistence | Source survives restarts |
 | View Flow -> HTML Generator | Rendering | Client-side rendering via JS/WASM |
@@ -188,19 +189,19 @@ flowchart LR
 | Embed Flow -> D2/Mermaid Renderer | SVG output | Server-side rendering for embedding |
 | Diff Flow -> Diff Store | Persistence | Diff pairs survive restarts |
 | Diff Flow -> Diff Viewer | Comparison | Side-by-side HTML generation |
-
 ## Testing Strategy
 
 **Integration scope:**
+
 - Flow-level tests for create/view/embed/diff
 - Diagram store and diff store CRUD operations
 - HTML generator output validation
 - Render queue claim/complete cycle
-
 **Mocking approach:**
+
 - Flows can be executed with custom scopes/tags
 - In-memory SQLite for tests
-
 **Fixtures:**
+
 - Valid Mermaid/D2 source strings
 - Invalid input for validation tests

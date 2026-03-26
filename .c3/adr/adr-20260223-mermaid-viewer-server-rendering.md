@@ -16,6 +16,7 @@ approved-files:
   - .c3/c3-1-api-server/c3-116-view-flow.md
   - .c3/c3-1-api-server/c3-119-html-generator.md
   - .c3/c3-1-api-server/c3-126-diff-viewer.md
+goal: "(to be filled)"
 ---
 
 # Server-Side Rendering for Mermaid Viewer and Diff
@@ -117,3 +118,7 @@ approved-files:
 - [x] Theme-preference localStorage still works
 - [x] All existing tests pass (updated for new signatures)
 - [x] D2 rendering unchanged
+
+## Goal
+
+(to be filled)

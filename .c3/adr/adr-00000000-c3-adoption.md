@@ -6,6 +6,7 @@ type: adr
 status: implemented
 date: 2026-01-06
 affects: [c3-0, c3-1, c3-2]
+goal: "(to be filled)"
 ---
 
 # C3 Architecture Documentation Adoption
@@ -103,3 +104,7 @@ Adopt C3 (Context-Container-Component) methodology for architecture documentatio
 |-------|------|-------|
 | Adopted | 2026-01-06 | Initial C3 structure created |
 | Documented | 2026-01-06 | Context, containers, key components documented |
+
+## Goal
+
+(to be filled)

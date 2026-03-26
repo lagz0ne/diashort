@@ -1,18 +1,33 @@
 ---
 id: c3-2
-c3-version: 3
 title: SQLite Database
 type: container
 parent: c3-0
-summary: >
-  Persistent storage for diagram source code and diffs. Single-file database accessed via
-  Bun's native bun:sqlite module (in-process, no network).
+goal: Provide persistent, zero-config storage for diagram source code, diff pairs, and the Mermaid render queue.
 ---
 
 # SQLite Database
 
 Embedded SQLite database storing diagram source code and diff pairs. Accessed via `bun:sqlite` which provides synchronous, in-process database access without external dependencies. A separate database file is used for the Mermaid render queue.
 
+## Goal
+
+Provide persistent, zero-config storage for diagram source code, diff pairs, and the Mermaid render queue.
+
+## Responsibilities
+
+- Store and retrieve diagram source code by shortlink ID
+- Store and retrieve diagram diff pairs for comparison views
+- Manage render job queue for Mermaid server-side rendering
+- Clean up expired diagrams and diffs based on retention policy
+- Schema auto-creation on first access (no migration tooling)
+## Components
+
+| ID | Name | Category | Status | Goal Contribution |
+| --- | --- | --- | --- | --- |
+| c3-112 | Diagram Store | feature | active | CRUD for diagram source code in diagrams table |
+| c3-125 | Diff Store | feature | active | CRUD for diagram diff pairs in diagram_diffs table |
+| c3-120 | Render Queue | feature | active | Job queue management in render_jobs table (separate WAL DB) |
 ## Overview
 
 ```mermaid
@@ -41,9 +56,7 @@ flowchart TB
     RenderQueue -->|"bun:sqlite (WAL)"| QDB
     QDB --> Jobs
 ```
-
 ## Schema
-
 ### diagrams table
 
 ```sql
@@ -57,7 +70,6 @@ CREATE TABLE diagrams (
 
 CREATE INDEX idx_diagrams_accessed ON diagrams(accessedAt);
 ```
-
 ### diagram_diffs table
 
 ```sql
@@ -72,7 +84,6 @@ CREATE TABLE diagram_diffs (
 
 CREATE INDEX idx_diffs_accessed ON diagram_diffs(accessedAt);
 ```
-
 ### render_jobs table (separate database: mermaid-queue.db)
 
 ```sql
@@ -89,32 +100,29 @@ CREATE TABLE render_jobs (
 CREATE INDEX idx_jobs_state ON render_jobs(state);
 CREATE INDEX idx_jobs_browser ON render_jobs(browser_id);
 ```
-
 ## Access Patterns
 
 | Operation | Table | Query | Caller |
-|-----------|-------|-------|--------|
-| Create diagram | diagrams | `INSERT INTO diagrams ...` | Create Flow (c3-114) |
-| Get diagram | diagrams | `SELECT * FROM diagrams WHERE id = ?` | View/Embed Flow |
-| Touch access | diagrams | `UPDATE diagrams SET accessedAt = ? WHERE id = ?` | View/Embed Flow |
-| Cleanup old | diagrams | `DELETE FROM diagrams WHERE accessedAt < ?` | Cleanup interval |
-| Create diff | diagram_diffs | `INSERT INTO diagram_diffs ...` | Diff Flow (c3-127) |
-| Get diff | diagram_diffs | `SELECT ... FROM diagram_diffs WHERE id = ?` | Diff Flow (c3-127) |
-| Touch diff | diagram_diffs | `UPDATE diagram_diffs SET accessedAt = ? WHERE id = ?` | Diff Flow (c3-127) |
-| Cleanup diffs | diagram_diffs | `DELETE FROM diagram_diffs WHERE accessedAt < ?` | Cleanup interval |
-| Enqueue render | render_jobs | `INSERT INTO render_jobs ...` | Browser Farm (c3-121) |
-| Claim job | render_jobs | `UPDATE ... SET state = 'processing' WHERE state = 'pending'` | Browser Farm (c3-121) |
-| Complete job | render_jobs | `DELETE FROM render_jobs WHERE id = ?` | Browser Farm (c3-121) |
-
+| --- | --- | --- | --- |
+| Create diagram | diagrams | INSERT INTO diagrams ... | Create Flow (c3-114) |
+| Get diagram | diagrams | SELECT * FROM diagrams WHERE id = ? | View/Embed Flow |
+| Touch access | diagrams | UPDATE diagrams SET accessedAt = ? WHERE id = ? | View/Embed Flow |
+| Cleanup old | diagrams | DELETE FROM diagrams WHERE accessedAt < ? | Cleanup interval |
+| Create diff | diagram_diffs | INSERT INTO diagram_diffs ... | Diff Flow (c3-127) |
+| Get diff | diagram_diffs | SELECT ... FROM diagram_diffs WHERE id = ? | Diff Flow (c3-127) |
+| Touch diff | diagram_diffs | UPDATE diagram_diffs SET accessedAt = ? WHERE id = ? | Diff Flow (c3-127) |
+| Cleanup diffs | diagram_diffs | DELETE FROM diagram_diffs WHERE accessedAt < ? | Cleanup interval |
+| Enqueue render | render_jobs | INSERT INTO render_jobs ... | Browser Farm (c3-121) |
+| Claim job | render_jobs | UPDATE ... SET state = 'processing' WHERE state = 'pending' | Browser Farm (c3-121) |
+| Complete job | render_jobs | DELETE FROM render_jobs WHERE id = ? | Browser Farm (c3-121) |
 ## Configuration
 
 | Env Variable | Default | Purpose |
-|--------------|---------|---------|
-| `DIAGRAM_DB_PATH` | `./data/diagrams.db` | Main database file location |
-| `DIAGRAM_RETENTION_DAYS` | `30` | How long to keep diagrams/diffs |
-| `CLEANUP_INTERVAL_MS` | `86400000` (daily) | How often to run cleanup |
-| `MERMAID_DB_PATH` | `./data/mermaid-queue.db` | Render queue database |
-
+| --- | --- | --- |
+| DIAGRAM_DB_PATH | ./data/diagrams.db | Main database file location |
+| DIAGRAM_RETENTION_DAYS | 30 | How long to keep diagrams/diffs |
+| CLEANUP_INTERVAL_MS | 86400000 (daily) | How often to run cleanup |
+| MERMAID_DB_PATH | ./data/mermaid-queue.db | Render queue database |
 ## Constraints
 
 - **Single writer:** Bun process is the only writer for main DB. No WAL mode needed.
@@ -122,7 +130,6 @@ CREATE INDEX idx_jobs_browser ON render_jobs(browser_id);
 - **In-process:** No network latency, synchronous queries are fast.
 - **File-based:** Database files must be on persistent volume in containerized deployments.
 - **No migrations:** Schema created on first access via `CREATE TABLE IF NOT EXISTS`.
-
 ## Data Lifecycle
 
 ```mermaid
@@ -133,17 +140,70 @@ stateDiagram-v2
     stored --> [*]: cleanup after retention
     accessed --> [*]: cleanup after retention
 ```
-
 **Retention logic:** Diagrams and diffs deleted when `accessedAt` is older than retention period. Each view updates `accessedAt`, so actively viewed items persist indefinitely.
 
 ## Testing Strategy
 
 **Unit tests:**
-- Diagram Store CRUD operations
-- Diff Store CRUD operations
-- Cleanup retention logic
-- Render queue claim/complete cycle
 
+- Diagram Store CRUD operations
+Diagram Store CRUD operations
+Diagram Store CRUD operations
+Diagram Store CRUD operations
+Diagram Store CRUD operations
+Diagram Store CRUD operations
+Diagram Store CRUD operations
+Diagram Store CRUD operations
+
+- Diff Store CRUD operations
+Diff Store CRUD operations
+Diff Store CRUD operations
+Diff Store CRUD operations
+Diff Store CRUD operations
+Diff Store CRUD operations
+Diff Store CRUD operations
+Diff Store CRUD operations
+
+- Cleanup retention logic
+Cleanup retention logic
+Cleanup retention logic
+Cleanup retention logic
+Cleanup retention logic
+Cleanup retention logic
+Cleanup retention logic
+Cleanup retention logic
+
+- Render queue claim/complete cycle
 **Integration tests:**
+Render queue claim/complete cycle
+**Integration tests:**
+Render queue claim/complete cycle
+**Integration tests:**
+Render queue claim/complete cycle
+**Integration tests:**
+Render queue claim/complete cycle
+**Integration tests:**
+Render queue claim/complete cycle
+**Integration tests:**
+Render queue claim/complete cycle
+**Integration tests:**
+Render queue claim/complete cycle
+**Integration tests:**
+
 - Lifecycle with real SQLite file
+Lifecycle with real SQLite file
+Lifecycle with real SQLite file
+Lifecycle with real SQLite file
+Lifecycle with real SQLite file
+Lifecycle with real SQLite file
+Lifecycle with real SQLite file
+Lifecycle with real SQLite file
+
 - Concurrent access patterns (render queue)
+Concurrent access patterns (render queue)
+Concurrent access patterns (render queue)
+Concurrent access patterns (render queue)
+Concurrent access patterns (render queue)
+Concurrent access patterns (render queue)
+Concurrent access patterns (render queue)
+Concurrent access patterns (render queue)

@@ -18,6 +18,7 @@ approved-files:
   - src/__tests__/browser-farm.test.ts
   - src/__tests__/integration.test.ts
   - docs/plans/2026-01-22-browser-farm-mermaid-renderer.md
+goal: "(to be filled)"
 ---
 
 # Browser Farm for Server-Side Mermaid Rendering
@@ -252,3 +253,7 @@ New environment variables:
 | [adr-20260106-client-side-rendering](./adr-20260106-client-side-rendering.md) | Previous decision to remove server-side rendering |
 | [c3-1 API Server](../c3-1-api-server/) | Container being modified |
 | [embed.ts](../../src/flows/embed.ts) | Flow to be modified |
+
+## Goal
+
+(to be filled)
