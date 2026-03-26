@@ -1,5 +1,7 @@
 import { flow } from "@pumped-fn/lite";
 import { diagramStoreAtom, ConflictError, type DiagramFormat } from "../atoms/diagram-store";
+import { optionalD2RendererAtom } from "../atoms/d2-renderer";
+import { optionalMermaidRendererAtom } from "../atoms/mermaid-renderer";
 import { loggerAtom } from "../atoms/logger";
 import { baseUrlTag, requestOriginTag } from "../config/tags";
 import { NotFoundError } from "./view";
@@ -15,6 +17,7 @@ export interface CreateResult {
   shortlink: string;
   url: string;
   embed: string;
+  source: string;
   version: string;
 }
 
@@ -81,14 +84,31 @@ export const createFlow = flow({
   name: "create",
   deps: {
     diagramStore: diagramStoreAtom,
+    d2Renderer: optionalD2RendererAtom,
+    mermaidRenderer: optionalMermaidRendererAtom,
     logger: loggerAtom,
   },
   parse: (raw: unknown) => parseCreateInput(raw),
-  factory: async (ctx, { diagramStore, logger }): Promise<CreateResult> => {
+  factory: async (ctx, { diagramStore, d2Renderer, mermaidRenderer, logger }): Promise<CreateResult> => {
     const { input } = ctx;
     const configuredBaseUrl = ctx.data.seekTag(baseUrlTag);
     const requestOrigin = ctx.data.seekTag(requestOriginTag) ?? "";
     const baseUrl = configuredBaseUrl || requestOrigin;
+
+    // Best-effort: skip validation if renderer unavailable
+    if (input.format === "d2" && d2Renderer) {
+      try {
+        await d2Renderer.render(input.source, "light");
+      } catch (err) {
+        throw new ValidationError(`Invalid D2 source: ${(err as Error).message}`);
+      }
+    } else if (input.format === "mermaid" && mermaidRenderer) {
+      try {
+        await mermaidRenderer.render(input.source);
+      } catch (err) {
+        throw new ValidationError(`Invalid mermaid source: ${(err as Error).message}`);
+      }
+    }
 
     if (input.shortlink) {
       // Add version to existing diagram
@@ -110,6 +130,7 @@ export const createFlow = flow({
         shortlink: input.shortlink,
         url: `${baseUrl}/d/${input.shortlink}/${versionName}`,
         embed: `${baseUrl}/e/${input.shortlink}/${versionName}`,
+        source: `${baseUrl}/api/d/${input.shortlink}/versions/${versionName}/source`,
         version: versionName,
       };
     }
@@ -125,6 +146,7 @@ export const createFlow = flow({
       shortlink,
       url: `${baseUrl}/d/${shortlink}`,
       embed: `${baseUrl}/e/${shortlink}`,
+      source: `${baseUrl}/api/d/${shortlink}/versions/v1/source`,
       version: "v1",
     };
   },

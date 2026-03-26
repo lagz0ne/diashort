@@ -7,6 +7,7 @@ interface CreateResponse {
   shortlink: string;
   url: string;
   embed: string;
+  source: string;
   version: string;
 }
 
@@ -153,6 +154,7 @@ describe("Integration Tests", () => {
       expect(body.shortlink).toBeDefined();
       expect(body.url).toBe(`${baseUrl}/d/${body.shortlink}`);
       expect(body.embed).toBe(`${baseUrl}/e/${body.shortlink}`);
+      expect(body.source).toBe(`${baseUrl}/api/d/${body.shortlink}/versions/v1/source`);
     });
 
     it("includes X-Request-Id header in response", async () => {
@@ -230,6 +232,7 @@ describe("Integration Tests", () => {
 
   describe("D2 diagram viewing", () => {
     it("GET /d/:shortlink for D2 returns HTML with SVG via redirect", async () => {
+      if (!Bun.which("d2")) return; // D2 CLI required for rendering
       const createRes = await fetch(`${baseUrl}/render`, {
         method: "POST",
         headers: {
@@ -559,6 +562,8 @@ describe("Integration Tests", () => {
     });
 
     it("GET /e/:shortlink/:version returns SVG with immutable cache", async () => {
+      if (!Bun.which("d2")) return; // D2 CLI required for rendering
+
       const res = await fetch(`${baseUrl}/e/${shortlink}/v1`);
       expect(res.status).toBe(200);
       expect(res.headers.get("Content-Type")).toBe("image/svg+xml");

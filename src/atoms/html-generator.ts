@@ -2,6 +2,7 @@ import { atom } from "@pumped-fn/lite";
 
 export interface HTMLGeneratorOptions {
   embedUrl?: string;
+  sourceUrl?: string;
   versionInfo?: VersionInfo;
 }
 
@@ -715,6 +716,7 @@ export const htmlGeneratorAtom = atom({
       const escapedSvg = escapeJs(svg);
 
       const embedUrl = options?.embedUrl;
+      const sourceUrl = options?.sourceUrl;
       const ogTags = embedUrl
         ? `
   <meta property="og:type" content="image">
@@ -724,13 +726,14 @@ export const htmlGeneratorAtom = atom({
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="${escapeHtml(embedUrl)}">`
         : "";
+      const sourceLink = sourceUrl ? `\n  <link rel="source" href="${escapeHtml(sourceUrl)}">` : "";
 
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>${ogTags}
+  <title>${escapeHtml(title)}</title>${ogTags}${sourceLink}
   <style>${baseStyles}${versionInfo ? versionStyles : ""}</style>
 </head>
 <body>
@@ -789,7 +792,6 @@ export const htmlGeneratorAtom = atom({
       const escapedLightSvg = escapeJs(lightSvg);
       const escapedDarkSvg = escapeJs(darkSvg);
 
-      // OpenGraph meta tags for link previews (only when embedUrl is provided)
       const ogTags = options?.embedUrl
         ? `
   <meta property="og:type" content="image">
@@ -799,13 +801,14 @@ export const htmlGeneratorAtom = atom({
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="${escapeHtml(options.embedUrl)}">`
         : "";
+      const sourceLink = options?.sourceUrl ? `\n  <link rel="source" href="${escapeHtml(options.sourceUrl)}">` : "";
 
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>${ogTags}
+  <title>${escapeHtml(title)}</title>${ogTags}${sourceLink}
   <style>${baseStyles}${versionInfo ? versionStyles : ""}</style>
 </head>
 <body>

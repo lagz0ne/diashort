@@ -205,6 +205,9 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
             if (result.embed) {
               responseBody.embed = result.embed;
             }
+            if (result.source) {
+              responseBody.source = result.source;
+            }
 
             return new Response(JSON.stringify(responseBody), {
               status: 200,
@@ -265,14 +268,16 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
               });
             }
 
-            return new Response(result.html, {
-              status: 200,
-              headers: {
-                "Content-Type": result.contentType,
-                "X-Request-Id": requestId,
-                "Cache-Control": "public, max-age=31536000, immutable",
-              },
-            });
+            const viewHeaders: Record<string, string> = {
+              "Content-Type": result.contentType,
+              "X-Request-Id": requestId,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            };
+            if (versionName) {
+              viewHeaders["Link"] = `</api/d/${shortlink}/versions/${versionName}/source>; rel="source"`;
+            }
+
+            return new Response(result.html, { status: 200, headers: viewHeaders });
           } finally {
             await ctx.close();
           }
@@ -304,14 +309,16 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
               });
             }
 
-            return new Response(result.svg, {
-              status: 200,
-              headers: {
-                "Content-Type": result.contentType,
-                "X-Request-Id": requestId,
-                "Cache-Control": "public, max-age=31536000, immutable",
-              },
-            });
+            const embedHeaders: Record<string, string> = {
+              "Content-Type": result.contentType,
+              "X-Request-Id": requestId,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            };
+            if (versionName) {
+              embedHeaders["Link"] = `</api/d/${shortlink}/versions/${versionName}/source>; rel="source"`;
+            }
+
+            return new Response(result.svg, { status: 200, headers: embedHeaders });
           } finally {
             await ctx.close();
           }
@@ -402,7 +409,7 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
 
 POST /render  Create diagram or add version to existing shortlink
   {"source": "...", "format": "mermaid|d2", "shortlink?": "...", "version?": "..."}
-  -> {"shortlink", "url", "embed", "version"}
+  -> {"shortlink", "url", "embed", "source", "version"}
   Versions auto-name as v1, v2... or use custom names (must start with letter, vN reserved)
 
 GET  /d/:id            302 -> /d/:id/:latest

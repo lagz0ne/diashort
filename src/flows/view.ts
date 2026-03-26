@@ -116,7 +116,8 @@ export const viewFlow = flow({
       ]);
 
       const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}/${input.versionName}` : undefined;
-      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl, versionInfo });
+      const sourceUrl = `/api/d/${input.shortlink}/versions/${input.versionName}/source`;
+      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl, sourceUrl, versionInfo });
       logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated D2 HTML page");
     } else {
       if (!mermaidRenderer) {
@@ -125,7 +126,8 @@ export const viewFlow = flow({
 
       const svg = await mermaidRenderer.render(versionData.source);
       const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}/${input.versionName}` : undefined;
-      html = htmlGenerator.generateMermaid(svg, input.shortlink, { embedUrl, versionInfo });
+      const sourceUrl = `/api/d/${input.shortlink}/versions/${input.versionName}/source`;
+      html = htmlGenerator.generateMermaid(svg, input.shortlink, { embedUrl, sourceUrl, versionInfo });
       logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated Mermaid HTML page");
     }
 

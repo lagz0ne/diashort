@@ -1,7 +1,7 @@
 import { flow } from "@pumped-fn/lite";
 import { diffStoreAtom, type CreateDiffInput } from "../atoms/diff-store";
 import { diffViewerAtom } from "../atoms/diff-viewer";
-import { d2RendererAtom } from "../atoms/d2-renderer";
+import { d2RendererAtom, optionalD2RendererAtom } from "../atoms/d2-renderer";
 import { optionalMermaidRendererAtom } from "../atoms/mermaid-renderer";
 import { loggerAtom } from "../atoms/logger";
 import { baseUrlTag, requestOriginTag } from "../config/tags";
@@ -65,11 +65,12 @@ export const createDiffFlow = flow({
   name: "createDiff",
   deps: {
     diffStore: diffStoreAtom,
-    d2Renderer: d2RendererAtom,
+    d2Renderer: optionalD2RendererAtom,
+    mermaidRenderer: optionalMermaidRendererAtom,
     logger: loggerAtom,
   },
   parse: (raw: unknown) => parseCreateDiffInput(raw),
-  factory: async (ctx, { diffStore, d2Renderer, logger }): Promise<CreateDiffResult> => {
+  factory: async (ctx, { diffStore, d2Renderer, mermaidRenderer, logger }): Promise<CreateDiffResult> => {
     const { input } = ctx;
     const configuredBaseUrl = ctx.data.seekTag(baseUrlTag);
     const requestOrigin = ctx.data.seekTag(requestOriginTag) ?? "";
@@ -77,17 +78,28 @@ export const createDiffFlow = flow({
 
     logger.debug({ format: input.format }, "Creating diff");
 
-    // Validate D2 syntax for both before and after
-    if (input.format === "d2") {
-      try {
-        await d2Renderer.render(input.before, "light");
-      } catch (err) {
-        throw new DiffValidationError(`Invalid D2 syntax in 'before': ${(err as Error).message}`);
+    // Best-effort: skip validation if renderer unavailable
+    if (input.format === "d2" && d2Renderer) {
+      const results = await Promise.allSettled([
+        d2Renderer.render(input.before, "light"),
+        d2Renderer.render(input.after, "light"),
+      ]);
+      if (results[0].status === "rejected") {
+        throw new DiffValidationError(`Invalid D2 syntax in 'before': ${(results[0].reason as Error).message}`);
       }
-      try {
-        await d2Renderer.render(input.after, "light");
-      } catch (err) {
-        throw new DiffValidationError(`Invalid D2 syntax in 'after': ${(err as Error).message}`);
+      if (results[1].status === "rejected") {
+        throw new DiffValidationError(`Invalid D2 syntax in 'after': ${(results[1].reason as Error).message}`);
+      }
+    } else if (input.format === "mermaid" && mermaidRenderer) {
+      const results = await Promise.allSettled([
+        mermaidRenderer.render(input.before),
+        mermaidRenderer.render(input.after),
+      ]);
+      if (results[0].status === "rejected") {
+        throw new DiffValidationError(`Invalid mermaid syntax in 'before': ${(results[0].reason as Error).message}`);
+      }
+      if (results[1].status === "rejected") {
+        throw new DiffValidationError(`Invalid mermaid syntax in 'after': ${(results[1].reason as Error).message}`);
       }
     }
 

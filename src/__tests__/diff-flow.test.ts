@@ -1,9 +1,17 @@
 // src/__tests__/diff-flow.test.ts
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { createScope } from "@pumped-fn/lite";
+import { atom, createScope, preset } from "@pumped-fn/lite";
 import { createDiffFlow, viewDiffFlow, DiffValidationError, DiffNotFoundError } from "../flows/diff";
+import { optionalMermaidRendererAtom, type MermaidRenderer } from "../atoms/mermaid-renderer";
 import { diagramConfigTag, baseUrlTag, requestOriginTag } from "../config/tags";
 import { existsSync, unlinkSync } from "fs";
+
+const mockMermaid: MermaidRenderer = {
+  async render(source: string) {
+    if (source.includes("INVALID")) throw new Error("Parse error: invalid syntax");
+    return "<svg>mock</svg>";
+  },
+};
 
 describe("Diff Flows", () => {
   const testDbPath = "/tmp/diff-flow-test.db";
@@ -40,6 +48,74 @@ describe("Diff Flows", () => {
 
       expect(result.shortlink).toMatch(/^[a-f0-9]{8}$/);
       expect(result.url).toBe(`https://example.com/diff/${result.shortlink}`);
+
+      await ctx.close();
+      await scope.dispose();
+    });
+
+    it("rejects invalid mermaid source in 'before' at create time", async () => {
+      const scope = createScope({
+        tags: [
+          diagramConfigTag({ dbPath: testDbPath, retentionDays: 30, cleanupIntervalMs: 3600000 }),
+          baseUrlTag("https://example.com"),
+        ],
+        presets: [
+          preset(optionalMermaidRendererAtom, atom({ factory: (): MermaidRenderer | undefined => mockMermaid })),
+        ],
+      });
+
+      const ctx = scope.createContext({ tags: [requestOriginTag("https://test.com")] });
+
+      try {
+        await ctx.exec({
+          flow: createDiffFlow,
+          rawInput: {
+            format: "mermaid",
+            before: "INVALID mermaid garbage",
+            after: "graph TD; A-->B;",
+          },
+        });
+        expect.unreachable("should have thrown");
+      } catch (err) {
+        const error = err as Error & { cause?: Error };
+        const actual = error.cause ?? error;
+        expect(actual).toBeInstanceOf(DiffValidationError);
+        expect(actual.message).toContain("before");
+      }
+
+      await ctx.close();
+      await scope.dispose();
+    });
+
+    it("rejects invalid mermaid source in 'after' at create time", async () => {
+      const scope = createScope({
+        tags: [
+          diagramConfigTag({ dbPath: testDbPath, retentionDays: 30, cleanupIntervalMs: 3600000 }),
+          baseUrlTag("https://example.com"),
+        ],
+        presets: [
+          preset(optionalMermaidRendererAtom, atom({ factory: (): MermaidRenderer | undefined => mockMermaid })),
+        ],
+      });
+
+      const ctx = scope.createContext({ tags: [requestOriginTag("https://test.com")] });
+
+      try {
+        await ctx.exec({
+          flow: createDiffFlow,
+          rawInput: {
+            format: "mermaid",
+            before: "graph TD; A-->B;",
+            after: "INVALID mermaid garbage",
+          },
+        });
+        expect.unreachable("should have thrown");
+      } catch (err) {
+        const error = err as Error & { cause?: Error };
+        const actual = error.cause ?? error;
+        expect(actual).toBeInstanceOf(DiffValidationError);
+        expect(actual.message).toContain("after");
+      }
 
       await ctx.close();
       await scope.dispose();
