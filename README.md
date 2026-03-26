@@ -15,6 +15,8 @@ Or open in browser: https://diashort.apps.quickable.co/
 ## Features
 
 - Store Mermaid and D2 diagram source with shareable shortlinks
+- Create-time validation rejects invalid diagrams before storing
+- Source URL in response and `Link` header for programmatic discovery
 - Multiple versions per shortlink with auto or custom naming
 - Interactive viewer with zoom/pan, dark mode, text selection
 - Version picker and side-by-side compare overlay
@@ -52,7 +54,7 @@ curl -X POST https://diashort.apps.quickable.co/render \
 ```
 
 ```json
-{"shortlink": "abc12345", "url": "https://.../d/abc12345", "embed": "https://.../e/abc12345", "version": "v1"}
+{"shortlink": "abc12345", "url": "https://.../d/abc12345", "embed": "https://.../e/abc12345", "source": "https://.../api/d/abc12345/versions/v1/source", "version": "v1"}
 ```
 
 **Add version to existing shortlink:**
@@ -63,8 +65,10 @@ curl -X POST https://diashort.apps.quickable.co/render \
 ```
 
 ```json
-{"shortlink": "abc12345", "url": "https://.../d/abc12345/v2", "embed": "https://.../e/abc12345/v2", "version": "v2"}
+{"shortlink": "abc12345", "url": "https://.../d/abc12345/v2", "embed": "https://.../e/abc12345/v2", "source": "https://.../api/d/abc12345/versions/v2/source", "version": "v2"}
 ```
+
+Invalid diagram source is rejected at create time with a 400 error and the render error message.
 
 **Parameters:**
 
