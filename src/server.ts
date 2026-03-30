@@ -1,14 +1,13 @@
 import { createScope, type Lite, atom, tags } from "@pumped-fn/lite";
 import { loadConfigTags, serverPortTag, authCredentialsTag, authEnabledTag, requestIdTag, diagramConfigTag, requestOriginTag } from "./config/tags";
+import { indexPage } from "./pages/index";
 import { optionalMermaidRendererAtom } from "./atoms/mermaid-renderer";
 import { AuthError } from "./extensions/auth";
-import { createFlow, ValidationError, ConflictError } from "./flows/create";
+import { createFlow, ValidationError } from "./flows/create";
 import { viewFlow, NotFoundError, RenderNotAvailableError } from "./flows/view";
 import { embedFlow, EmbedNotSupportedError, EmbedRenderError } from "./flows/embed";
-import { createDiffFlow, viewDiffFlow, DiffValidationError, DiffNotFoundError, DiffRenderNotAvailableError } from "./flows/diff";
 import { loggerAtom } from "./atoms/logger";
 import { diagramStoreAtom, DiagramNotFoundError } from "./atoms/diagram-store";
-import { diffStoreAtom } from "./atoms/diff-store";
 
 const serverConfigAtom = atom({
   deps: {
@@ -69,13 +68,6 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
-  if (error instanceof ConflictError) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 409,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
   if (error instanceof ValidationError) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
@@ -112,21 +104,7 @@ function mapErrorToResponse(error: unknown): Response {
     });
   }
 
-  if (error instanceof DiffValidationError) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (error instanceof DiffNotFoundError) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (error instanceof RenderNotAvailableError || error instanceof DiffRenderNotAvailableError) {
+  if (error instanceof RenderNotAvailableError) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
@@ -157,10 +135,8 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
 
   // Resolve diagram store to initialize DB
   const diagramStore = await scope.resolve(diagramStoreAtom);
-  const diffStore = await scope.resolve(diffStoreAtom);
 
   // Resolve mermaid renderer if configured (fail-fast check)
-  // Uses optionalMermaidRendererAtom which is the same atom used by embedFlow
   const mermaidRenderer = await scope.resolve(optionalMermaidRendererAtom);
   if (mermaidRenderer) {
     logger.info("Mermaid SSR enabled");
@@ -169,7 +145,6 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
   // Start cleanup interval
   const cleanupInterval = setInterval(() => {
     diagramStore.cleanup();
-    diffStore.cleanup();
   }, diagramConfig.cleanupIntervalMs);
 
   logger.info({ port }, "Starting server");
@@ -197,44 +172,11 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
               rawInput: body,
             });
 
-            const responseBody: Record<string, string> = {
+            return new Response(JSON.stringify({
               shortlink: result.shortlink,
               url: result.url,
-              version: result.version,
-            };
-            if (result.embed) {
-              responseBody.embed = result.embed;
-            }
-            if (result.source) {
-              responseBody.source = result.source;
-            }
-
-            return new Response(JSON.stringify(responseBody), {
-              status: 200,
-              headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
-            });
-          } finally {
-            await ctx.close();
-          }
-        }
-
-        if (req.method === "POST" && url.pathname === "/diff") {
-          if (authConfig.enabled && authConfig.credentials) {
-            const authHeader = req.headers.get("authorization");
-            checkBasicAuth(authHeader, authConfig.credentials.username, authConfig.credentials.password);
-          }
-
-          const body = await req.json();
-
-          const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
-
-          try {
-            const result = await ctx.exec({
-              flow: createDiffFlow,
-              rawInput: body,
-            });
-
-            return new Response(JSON.stringify({ shortlink: result.shortlink, url: result.url }), {
+              embed: result.embed,
+            }), {
               status: 200,
               headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
             });
@@ -244,94 +186,13 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
         }
 
         if (req.method === "GET" && url.pathname.startsWith("/d/")) {
-          const pathAfter = url.pathname.slice(3); // e.g. "abc123" or "abc123/v1"
-          const slashIndex = pathAfter.indexOf("/");
-          const shortlink = slashIndex === -1 ? pathAfter : pathAfter.slice(0, slashIndex);
-          const versionName = slashIndex === -1 ? undefined : pathAfter.slice(slashIndex + 1);
+          const shortlink = url.pathname.slice(3);
 
           const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
 
           try {
             const result = await ctx.exec({
               flow: viewFlow,
-              input: { shortlink, versionName },
-            });
-
-            if (result.redirect) {
-              return new Response(null, {
-                status: 302,
-                headers: {
-                  "Location": result.redirect,
-                  "Cache-Control": "no-cache",
-                  "X-Request-Id": requestId,
-                },
-              });
-            }
-
-            const viewHeaders: Record<string, string> = {
-              "Content-Type": result.contentType,
-              "X-Request-Id": requestId,
-              "Cache-Control": "public, max-age=31536000, immutable",
-            };
-            if (versionName) {
-              viewHeaders["Link"] = `</api/d/${shortlink}/versions/${versionName}/source>; rel="source"`;
-            }
-
-            return new Response(result.html, { status: 200, headers: viewHeaders });
-          } finally {
-            await ctx.close();
-          }
-        }
-
-        if (req.method === "GET" && url.pathname.startsWith("/e/")) {
-          const pathAfter = url.pathname.slice(3);
-          const slashIndex = pathAfter.indexOf("/");
-          const shortlink = slashIndex === -1 ? pathAfter : pathAfter.slice(0, slashIndex);
-          const versionName = slashIndex === -1 ? undefined : pathAfter.slice(slashIndex + 1);
-          const theme = url.searchParams.get("theme") === "dark" ? "dark" : "light";
-
-          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
-
-          try {
-            const result = await ctx.exec({
-              flow: embedFlow,
-              input: { shortlink, versionName, theme },
-            });
-
-            if (result.redirect) {
-              return new Response(null, {
-                status: 302,
-                headers: {
-                  "Location": result.redirect,
-                  "Cache-Control": "no-cache",
-                  "X-Request-Id": requestId,
-                },
-              });
-            }
-
-            const embedHeaders: Record<string, string> = {
-              "Content-Type": result.contentType,
-              "X-Request-Id": requestId,
-              "Cache-Control": "public, max-age=31536000, immutable",
-            };
-            if (versionName) {
-              embedHeaders["Link"] = `</api/d/${shortlink}/versions/${versionName}/source>; rel="source"`;
-            }
-
-            return new Response(result.svg, { status: 200, headers: embedHeaders });
-          } finally {
-            await ctx.close();
-          }
-        }
-
-        if (req.method === "GET" && url.pathname.startsWith("/diff/")) {
-          const shortlink = url.pathname.slice(6);
-
-          const ctx = scope.createContext({ tags: [requestIdTag(requestId), requestOriginTag(url.origin)] });
-
-          try {
-            const result = await ctx.exec({
-              flow: viewDiffFlow,
               input: { shortlink },
             });
 
@@ -348,52 +209,28 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
           }
         }
 
-        // Version API endpoints (no auth required)
-        if (req.method === "GET" && url.pathname.startsWith("/api/d/")) {
-          const pathAfter = url.pathname.slice(7); // after "/api/d/"
+        if (req.method === "GET" && url.pathname.startsWith("/e/")) {
+          const shortlink = url.pathname.slice(3);
+          const theme = url.searchParams.get("theme") === "dark" ? "dark" : "light";
 
-          // /api/d/:shortlink/versions/:versionName/source
-          const sourceMatch = pathAfter.match(/^([^/]+)\/versions\/([^/]+)\/source$/);
-          if (sourceMatch) {
-            const shortlink = sourceMatch[1]!;
-            const versionName = sourceMatch[2]!;
-            const versionData = diagramStore.getVersionSource(shortlink, versionName);
-            if (!versionData) {
-              return new Response(JSON.stringify({ error: "Version not found" }), {
-                status: 404,
-                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
-              });
-            }
-            return new Response(JSON.stringify({ source: versionData.source, format: versionData.format }), {
+          const ctx = scope.createContext({ tags: [requestIdTag(requestId)] });
+
+          try {
+            const result = await ctx.exec({
+              flow: embedFlow,
+              input: { shortlink, theme },
+            });
+
+            return new Response(result.svg, {
               status: 200,
               headers: {
-                "Content-Type": "application/json",
+                "Content-Type": result.contentType,
                 "X-Request-Id": requestId,
                 "Cache-Control": "public, max-age=31536000, immutable",
               },
             });
-          }
-
-          // /api/d/:shortlink/versions
-          const versionsMatch = pathAfter.match(/^([^/]+)\/versions$/);
-          if (versionsMatch) {
-            const shortlink = versionsMatch[1]!;
-            const diagram = diagramStore.get(shortlink);
-            if (!diagram) {
-              return new Response(JSON.stringify({ error: "Diagram not found" }), {
-                status: 404,
-                headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
-              });
-            }
-            const versions = diagramStore.listVersions(shortlink);
-            return new Response(JSON.stringify({ shortlink, format: diagram.format, versions }), {
-              status: 200,
-              headers: {
-                "Content-Type": "application/json",
-                "X-Request-Id": requestId,
-                "Cache-Control": "no-cache",
-              },
-            });
+          } finally {
+            await ctx.close();
           }
         }
 
@@ -405,33 +242,9 @@ export async function startServer(): Promise<{ server: ReturnType<typeof Bun.ser
         }
 
         if (req.method === "GET" && url.pathname === "/") {
-          const usage = `Diashort — Diagram shortlink service (Mermaid & D2)
-
-POST /render  Create diagram or add version to existing shortlink
-  {"source": "...", "format": "mermaid|d2", "shortlink?": "...", "version?": "..."}
-  -> {"shortlink", "url", "embed", "source", "version"}
-  Versions auto-name as v1, v2... or use custom names (must start with letter, vN reserved)
-
-GET  /d/:id            302 -> /d/:id/:latest
-GET  /d/:id/:version   View diagram (HTML viewer with zoom/pan, version picker, compare)
-GET  /e/:id            302 -> /e/:id/:latest
-GET  /e/:id/:version   Raw SVG embed (?theme=light|dark)
-
-GET  /api/d/:id/versions              List versions (JSON)
-GET  /api/d/:id/versions/:v/source    Get version source (JSON)
-
-POST /diff  Compare two diagrams side-by-side
-  {"format": "mermaid|d2", "before": "...", "after": "..."}
-GET  /diff/:id  View diff (?layout=horizontal|vertical)
-
-GET  /health
-
-Try it:
-  curl -X POST ${url.origin}/render -H "Content-Type: application/json" -d '{"source":"graph TD; A-->B","format":"mermaid"}'
-`;
-          return new Response(usage, {
+          return new Response(indexPage(url.origin), {
             status: 200,
-            headers: { "Content-Type": "text/plain; charset=utf-8" },
+            headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=3600" },
           });
         }
 

@@ -3,14 +3,6 @@ import { atom } from "@pumped-fn/lite";
 export interface HTMLGeneratorOptions {
   embedUrl?: string;
   sourceUrl?: string;
-  versionInfo?: VersionInfo;
-}
-
-export interface VersionInfo {
-  shortlink: string;
-  currentVersion: string;
-  versionsApiUrl: string;
-  format: "mermaid" | "d2";
 }
 
 export interface HTMLGenerator {
@@ -144,170 +136,16 @@ const baseStyles = `
       flex-shrink: 0;
     }
     html[data-theme="dark"] .controls .separator { background: rgba(255,255,255,0.1); }
-    .controls select {
-      height: 34px;
-      border: 1px solid rgba(0,0,0,0.12);
-      border-radius: 7px;
-      padding: 0 28px 0 10px;
-      font-size: 13px;
-      font-weight: 500;
-      background: rgba(0,0,0,0.03);
-      color: #333;
-      cursor: pointer;
-      appearance: none;
-      -webkit-appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 8px center;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .controls select:hover { border-color: rgba(0,0,0,0.25); background: rgba(0,0,0,0.06); }
-    .controls select:focus-visible { outline: 2px solid #0066cc; outline-offset: 1px; }
-    html[data-theme="dark"] .controls select {
-      border-color: rgba(255,255,255,0.12);
-      color: #ddd;
-      background-color: rgba(255,255,255,0.06);
-      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    }
-    html[data-theme="dark"] .controls select:hover { border-color: rgba(255,255,255,0.25); background-color: rgba(255,255,255,0.1); }
-    .controls #compare-btn {
-      font-size: 14px;
-      font-weight: 500;
-      width: auto;
-      padding: 0 10px;
-      gap: 4px;
-      letter-spacing: -0.01em;
-    }
     @media (pointer: coarse) {
       .controls button { width: 44px; height: 44px; }
-      .controls select { height: 44px; }
-      .controls #compare-btn { height: 44px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .controls button, .controls select { transition: none; }
+      .controls button { transition: none; }
     }
 `;
 
-const versionStyles = `
-    .compare-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.85);
-      z-index: 2000;
-      display: none;
-      flex-direction: column;
-    }
-    .compare-overlay.active { display: flex; }
-    .compare-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 16px;
-      background: #fff;
-      border-bottom: 1px solid #e5e5e5;
-      flex-shrink: 0;
-    }
-    html[data-theme="dark"] .compare-header { background: #1e1e1e; border-color: #333; }
-    .compare-header label {
-      font-size: 12px;
-      font-weight: 600;
-      color: #888;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    html[data-theme="dark"] .compare-header label { color: #777; }
-    .compare-header select {
-      height: 34px;
-      border: 1px solid rgba(0,0,0,0.12);
-      border-radius: 7px;
-      padding: 0 28px 0 10px;
-      font-size: 13px;
-      font-weight: 500;
-      background: rgba(0,0,0,0.03);
-      color: #333;
-      appearance: none;
-      -webkit-appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 8px center;
-      transition: border-color 0.15s;
-      cursor: pointer;
-    }
-    .compare-header select:hover { border-color: rgba(0,0,0,0.25); }
-    .compare-header select:focus-visible { outline: 2px solid #0066cc; outline-offset: 1px; }
-    html[data-theme="dark"] .compare-header select {
-      border-color: rgba(255,255,255,0.12);
-      background-color: rgba(255,255,255,0.06);
-      color: #ddd;
-      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    }
-    html[data-theme="dark"] .compare-header select:hover { border-color: rgba(255,255,255,0.25); }
-    .compare-header .compare-close {
-      margin-left: auto;
-      width: 34px; height: 34px;
-      border: none; background: transparent;
-      cursor: pointer; font-size: 18px; color: #888;
-      border-radius: 7px;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.15s, color 0.15s;
-    }
-    .compare-header .compare-close:hover { background: rgba(0,0,0,0.07); color: #333; }
-    html[data-theme="dark"] .compare-header .compare-close { color: #888; }
-    html[data-theme="dark"] .compare-header .compare-close:hover { background: rgba(255,255,255,0.1); color: #ddd; }
-    .compare-panels {
-      flex: 1;
-      display: flex;
-      flex-direction: row;
-      overflow: hidden;
-    }
-    .compare-panel {
-      flex: 1;
-      overflow: hidden;
-      position: relative;
-      cursor: grab;
-    }
-    .compare-panel.dragging { cursor: grabbing; }
-    .compare-panel:first-child { border-right: 1px solid #444; }
-    .compare-panel-label {
-      position: absolute;
-      top: 8px; left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.6);
-      color: #fff;
-      padding: 2px 12px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
-      z-index: 1;
-      pointer-events: none;
-    }
-    .compare-panel > svg {
-      transform-origin: 0 0;
-      position: absolute;
-      top: 0; left: 0;
-      user-select: none;
-    }
-    .compare-panel .compare-loading {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      color: #999;
-      font-size: 14px;
-    }
-`;
-
-function buildControlsHtml(versionInfo?: VersionInfo): string {
-  // Always include version controls (hidden by default, shown dynamically by JS when multiple versions exist)
-  const versionControls = versionInfo
-    ? `
-    <select id="version-picker" aria-label="Select version" style="display:none"></select>
-    <button id="compare-btn" aria-label="Compare versions" title="Compare versions" style="display:none">&#x2194; Compare</button>
-    <div class="separator" id="version-separator" style="display:none"></div>`
-    : "";
-
-  return `
+const controlsHtml = `
   <div class="controls">
-    ${versionControls}
     <button id="zoom-in" aria-label="Zoom in">+</button>
     <button id="zoom-reset" aria-label="Reset view">&#x21BA;</button>
     <button id="zoom-out" aria-label="Zoom out">&minus;</button>
@@ -315,30 +153,6 @@ function buildControlsHtml(versionInfo?: VersionInfo): string {
     <button id="select-toggle" aria-label="Enable text selection">T</button>
     <button id="theme-toggle" aria-label="Toggle dark mode">&#x263E;</button>
   </div>`;
-}
-
-function buildCompareOverlayHtml(): string {
-  return `
-  <div id="compare-overlay" class="compare-overlay">
-    <div class="compare-header">
-      <label>From:</label>
-      <select id="compare-from"></select>
-      <label>To:</label>
-      <select id="compare-to"></select>
-      <button class="compare-close" id="compare-close" aria-label="Close comparison">&times;</button>
-    </div>
-    <div class="compare-panels">
-      <div class="compare-panel" id="compare-panel-from">
-        <div class="compare-panel-label" id="compare-label-from">From</div>
-        <div class="compare-loading">Select versions to compare</div>
-      </div>
-      <div class="compare-panel" id="compare-panel-to">
-        <div class="compare-panel-label" id="compare-label-to">To</div>
-        <div class="compare-loading">Select versions to compare</div>
-      </div>
-    </div>
-  </div>`;
-}
 
 const viewportScript = `
   const viewport = {
@@ -362,7 +176,6 @@ const viewportScript = `
     const svg = container.querySelector(':scope > svg');
     if (!svg) return;
 
-    // Get SVG dimensions from viewBox or getBBox
     let svgWidth, svgHeight;
     const viewBox = svg.getAttribute('viewBox');
     if (viewBox) {
@@ -375,20 +188,17 @@ const viewportScript = `
       svgHeight = bbox.height || 600;
     }
 
-    // Set explicit dimensions on SVG to prevent 100% width issues
     svg.setAttribute('width', svgWidth);
     svg.setAttribute('height', svgHeight);
     svg.style.width = svgWidth + 'px';
     svg.style.height = svgHeight + 'px';
 
-    // Calculate scale to fit viewport with padding
     const vw = window.innerWidth - viewport.padding * 2;
     const vh = window.innerHeight - viewport.padding * 2;
     const scaleX = vw / svgWidth;
     const scaleY = vh / svgHeight;
-    let fitScale = Math.min(scaleX, scaleY, 1); // Cap at 100%
+    let fitScale = Math.min(scaleX, scaleY, 1);
 
-    // Center the diagram
     const scaledWidth = svgWidth * fitScale;
     const scaledHeight = svgHeight * fitScale;
     const tx = (window.innerWidth - scaledWidth) / 2;
@@ -411,13 +221,10 @@ const viewportScript = `
 
   function zoomTo(newScale, anchorX, anchorY) {
     newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, newScale));
-
-    // Adjust translation to zoom toward anchor point
     const scaleDiff = newScale / viewport.scale;
     viewport.translateX = anchorX - (anchorX - viewport.translateX) * scaleDiff;
     viewport.translateY = anchorY - (anchorY - viewport.translateY) * scaleDiff;
     viewport.scale = newScale;
-
     applyTransform();
   }
 
@@ -432,14 +239,12 @@ const viewportScript = `
   function setupEventListeners() {
     const container = document.getElementById('diagram');
 
-    // Wheel zoom
     container.addEventListener('wheel', function(e) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? 1 / viewport.zoomFactor : viewport.zoomFactor;
       zoomTo(viewport.scale * delta, e.clientX, e.clientY);
     }, { passive: false });
 
-    // Mouse drag
     container.addEventListener('mousedown', function(e) {
       if (e.target.closest('.controls')) return;
       if (container.classList.contains('selectable')) return;
@@ -463,7 +268,6 @@ const viewportScript = `
       container.classList.remove('dragging');
     });
 
-    // Touch events
     container.addEventListener('touchstart', function(e) {
       if (e.target.closest('.controls')) return;
       if (container.classList.contains('selectable')) return;
@@ -508,7 +312,6 @@ const viewportScript = `
       container.classList.remove('dragging');
     });
 
-    // Button controls
     document.getElementById('zoom-in').addEventListener('click', function() {
       zoomTo(viewport.scale * viewport.zoomFactor, window.innerWidth / 2, window.innerHeight / 2);
     });
@@ -526,7 +329,6 @@ const viewportScript = `
       this.setAttribute('aria-label', isSelectable ? 'Disable text selection' : 'Enable text selection');
     });
 
-    // Recalculate on resize
     window.addEventListener('resize', function() {
       const svg = document.querySelector('#diagram > svg');
       if (!svg) return;
@@ -546,172 +348,10 @@ const viewportScript = `
   }
 `;
 
-function buildVersionScript(versionInfo: VersionInfo): string {
-  return `
-    // Version picker + compare overlay
-    const versionShortlink = '${versionInfo.shortlink}';
-    const currentVersion = '${versionInfo.currentVersion}';
-    const versionsApiUrl = '${versionInfo.versionsApiUrl}';
-    const diagramFormat = '${versionInfo.format}';
-    let versionsList = [];
-
-    async function loadVersions() {
-      try {
-        const res = await fetch(versionsApiUrl);
-        const data = await res.json();
-        versionsList = data.versions || [];
-        var hasMultiple = versionsList.length > 1;
-        showVersionControls(hasMultiple);
-        populateVersionPicker();
-        if (hasMultiple) populateCompareDropdowns();
-      } catch (e) { console.error('Failed to load versions', e); }
-    }
-
-    function showVersionControls(show) {
-      var picker = document.getElementById('version-picker');
-      var btn = document.getElementById('compare-btn');
-      var sep = document.getElementById('version-separator');
-      var display = show ? '' : 'none';
-      if (picker) picker.style.display = display;
-      if (btn) btn.style.display = display;
-      if (sep) sep.style.display = display;
-    }
-
-    function populateVersionPicker() {
-      const picker = document.getElementById('version-picker');
-      if (!picker) return;
-      picker.innerHTML = '';
-      versionsList.forEach(function(v) {
-        const opt = document.createElement('option');
-        opt.value = v.name;
-        opt.textContent = v.name;
-        if (v.name === currentVersion) opt.selected = true;
-        picker.appendChild(opt);
-      });
-      picker.addEventListener('change', function() {
-        window.location.href = '/d/' + versionShortlink + '/' + this.value;
-      });
-    }
-
-    function populateCompareDropdowns() {
-      var fromSel = document.getElementById('compare-from');
-      var toSel = document.getElementById('compare-to');
-      if (!fromSel || !toSel) return;
-      [fromSel, toSel].forEach(function(sel) {
-        sel.innerHTML = '<option value="">-- select --</option>';
-        versionsList.forEach(function(v) {
-          var opt = document.createElement('option');
-          opt.value = v.name;
-          opt.textContent = v.name;
-          sel.appendChild(opt);
-        });
-      });
-    }
-
-    // Compare overlay
-    var compareOverlay = document.getElementById('compare-overlay');
-    var compareBtn = document.getElementById('compare-btn');
-    var compareClose = document.getElementById('compare-close');
-
-    var compareViewport = { scale: 1, translateX: 0, translateY: 0 };
-    var compareDragging = false;
-    var compareLastX = 0, compareLastY = 0;
-
-    function applyCompareTransform() {
-      var panels = document.querySelectorAll('.compare-panel > svg');
-      panels.forEach(function(svg) {
-        svg.style.transform = 'translate(' + compareViewport.translateX + 'px, ' + compareViewport.translateY + 'px) scale(' + compareViewport.scale + ')';
-      });
-    }
-
-    if (compareBtn) {
-      compareBtn.addEventListener('click', function() {
-        compareOverlay.classList.add('active');
-      });
-    }
-    if (compareClose) {
-      compareClose.addEventListener('click', function() {
-        compareOverlay.classList.remove('active');
-      });
-    }
-
-    // Synced pan/zoom on compare panels
-    document.querySelectorAll('.compare-panel').forEach(function(panel) {
-      panel.addEventListener('wheel', function(e) {
-        e.preventDefault();
-        var factor = e.deltaY > 0 ? 1/1.2 : 1.2;
-        var newScale = Math.max(0.1, Math.min(5, compareViewport.scale * factor));
-        var diff = newScale / compareViewport.scale;
-        var rect = panel.getBoundingClientRect();
-        var cx = e.clientX - rect.left;
-        var cy = e.clientY - rect.top;
-        compareViewport.translateX = cx - (cx - compareViewport.translateX) * diff;
-        compareViewport.translateY = cy - (cy - compareViewport.translateY) * diff;
-        compareViewport.scale = newScale;
-        applyCompareTransform();
-      }, { passive: false });
-
-      panel.addEventListener('mousedown', function(e) {
-        compareDragging = true;
-        compareLastX = e.clientX;
-        compareLastY = e.clientY;
-        panel.classList.add('dragging');
-      });
-    });
-
-    window.addEventListener('mousemove', function(e) {
-      if (!compareDragging) return;
-      compareViewport.translateX += e.clientX - compareLastX;
-      compareViewport.translateY += e.clientY - compareLastY;
-      compareLastX = e.clientX;
-      compareLastY = e.clientY;
-      applyCompareTransform();
-    });
-
-    window.addEventListener('mouseup', function() {
-      compareDragging = false;
-      document.querySelectorAll('.compare-panel').forEach(function(p) { p.classList.remove('dragging'); });
-    });
-
-    async function renderComparePanel(panelId, versionName) {
-      var panel = document.getElementById(panelId);
-      if (!panel || !versionName) return;
-      panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div><div class="compare-loading">Loading...</div>';
-
-      try {
-        var theme = getEffectiveTheme();
-        var embedRes = await fetch('/e/' + versionShortlink + '/' + versionName + '?theme=' + theme);
-        var svgText = await embedRes.text();
-        panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div>' + svgText;
-      } catch (e) {
-        panel.innerHTML = '<div class="compare-panel-label">' + versionName + '</div><div class="compare-loading">Failed to load</div>';
-      }
-    }
-
-    var fromSel = document.getElementById('compare-from');
-    var toSel = document.getElementById('compare-to');
-    if (fromSel) {
-      fromSel.addEventListener('change', function() {
-        compareViewport = { scale: 1, translateX: 0, translateY: 0 };
-        renderComparePanel('compare-panel-from', this.value);
-      });
-    }
-    if (toSel) {
-      toSel.addEventListener('change', function() {
-        compareViewport = { scale: 1, translateX: 0, translateY: 0 };
-        renderComparePanel('compare-panel-to', this.value);
-      });
-    }
-
-    loadVersions();
-  `;
-}
-
 export const htmlGeneratorAtom = atom({
   deps: {},
   factory: (): HTMLGenerator => ({
     generateMermaid(svg: string, shortlink: string, options?: HTMLGeneratorOptions): string {
-      const versionInfo = options?.versionInfo;
       const title = `Diagram - ${shortlink}`;
       const escapedSvg = escapeJs(svg);
 
@@ -734,14 +374,13 @@ export const htmlGeneratorAtom = atom({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>${ogTags}${sourceLink}
-  <style>${baseStyles}${versionInfo ? versionStyles : ""}</style>
+  <style>${baseStyles}</style>
 </head>
 <body>
   <div id="diagram">
     <div id="loading">Loading diagram...</div>
   </div>
-  ${buildControlsHtml(versionInfo)}
-  ${versionInfo ? buildCompareOverlayHtml() : ""}
+  ${controlsHtml}
 
   <script>
     ${viewportScript}
@@ -778,7 +417,6 @@ export const htmlGeneratorAtom = atom({
     });
 
     render();
-    ${versionInfo ? buildVersionScript(versionInfo) : ""}
   </script>
 </body>
 </html>`;
@@ -786,9 +424,6 @@ export const htmlGeneratorAtom = atom({
 
     generateD2(lightSvg: string, darkSvg: string, shortlink: string, options?: HTMLGeneratorOptions): string {
       const title = `Diagram - ${shortlink}`;
-      const versionInfo = options?.versionInfo;
-
-      // Escape SVGs for embedding in script
       const escapedLightSvg = escapeJs(lightSvg);
       const escapedDarkSvg = escapeJs(darkSvg);
 
@@ -809,14 +444,13 @@ export const htmlGeneratorAtom = atom({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>${ogTags}${sourceLink}
-  <style>${baseStyles}${versionInfo ? versionStyles : ""}</style>
+  <style>${baseStyles}</style>
 </head>
 <body>
   <div id="diagram">
     <div id="loading">Loading diagram...</div>
   </div>
-  ${buildControlsHtml(versionInfo)}
-  ${versionInfo ? buildCompareOverlayHtml() : ""}
+  ${controlsHtml}
 
   <script>
     ${viewportScript}
@@ -854,7 +488,6 @@ export const htmlGeneratorAtom = atom({
     });
 
     render();
-    ${versionInfo ? buildVersionScript(versionInfo) : ""}
   </script>
 </body>
 </html>`;

@@ -1,6 +1,6 @@
 import { flow } from "@pumped-fn/lite";
 import { diagramStoreAtom } from "../atoms/diagram-store";
-import { htmlGeneratorAtom, type VersionInfo } from "../atoms/html-generator";
+import { htmlGeneratorAtom } from "../atoms/html-generator";
 import { d2RendererAtom } from "../atoms/d2-renderer";
 import { optionalMermaidRendererAtom } from "../atoms/mermaid-renderer";
 import { loggerAtom } from "../atoms/logger";
@@ -16,32 +16,11 @@ export class NotFoundError extends Error {
 
 export interface ViewInput {
   shortlink: string;
-  versionName?: string;
 }
 
 export interface ViewOutput {
   html: string;
   contentType: "text/html";
-  redirect?: string;
-}
-
-function parseViewInput(input: unknown): ViewInput {
-  if (!input || typeof input !== "object") {
-    throw new NotFoundError("Invalid request");
-  }
-
-  const obj = input as Record<string, unknown>;
-
-  if (typeof obj.shortlink !== "string" || obj.shortlink.trim() === "") {
-    throw new NotFoundError("shortlink is required");
-  }
-
-  const result: ViewInput = { shortlink: obj.shortlink };
-  if (typeof obj.versionName === "string" && obj.versionName.trim() !== "") {
-    result.versionName = obj.versionName;
-  }
-
-  return result;
 }
 
 export class RenderNotAvailableError extends Error {
@@ -61,7 +40,16 @@ export const viewFlow = flow({
     mermaidRenderer: optionalMermaidRendererAtom,
     logger: loggerAtom,
   },
-  parse: (raw: unknown) => parseViewInput(raw),
+  parse: (raw: unknown) => {
+    if (!raw || typeof raw !== "object") {
+      throw new NotFoundError("Invalid request");
+    }
+    const obj = raw as Record<string, unknown>;
+    if (typeof obj.shortlink !== "string" || obj.shortlink.trim() === "") {
+      throw new NotFoundError("shortlink is required");
+    }
+    return { shortlink: obj.shortlink };
+  },
   factory: async (ctx, { diagramStore, htmlGenerator, d2Renderer, mermaidRenderer, logger }): Promise<ViewOutput> => {
     const { input } = ctx;
 
@@ -69,71 +57,39 @@ export const viewFlow = flow({
     const requestOrigin = ctx.data.seekTag(requestOriginTag) ?? "";
     const baseUrl = configuredBaseUrl || requestOrigin;
 
-    logger.debug({ shortlink: input.shortlink, versionName: input.versionName }, "Viewing diagram");
+    logger.debug({ shortlink: input.shortlink }, "Viewing diagram");
 
-    // Check diagram exists
     const diagram = diagramStore.get(input.shortlink);
     if (!diagram) {
       logger.debug({ shortlink: input.shortlink }, "Diagram not found");
       throw new NotFoundError("Diagram not found");
     }
 
-    // If no version specified, redirect to latest
-    if (!input.versionName) {
-      const latestVersion = diagramStore.getLatestVersionName(input.shortlink);
-      if (!latestVersion) {
-        throw new NotFoundError("Diagram not found");
-      }
-      return {
-        html: "",
-        contentType: "text/html",
-        redirect: `/d/${input.shortlink}/${latestVersion}`,
-      };
-    }
-
-    // Serve specific version
-    const versionData = diagramStore.getVersionSource(input.shortlink, input.versionName);
-    if (!versionData) {
-      throw new NotFoundError("Version not found");
-    }
-
     // Update access time for retention
     diagramStore.touch(input.shortlink);
 
-    const versionInfo: VersionInfo = {
-      shortlink: input.shortlink,
-      currentVersion: input.versionName,
-      versionsApiUrl: `/api/d/${input.shortlink}/versions`,
-      format: versionData.format,
-    };
-
     let html: string;
 
-    if (versionData.format === "d2") {
+    if (diagram.format === "d2") {
       const [lightSvg, darkSvg] = await Promise.all([
-        d2Renderer.render(versionData.source, "light"),
-        d2Renderer.render(versionData.source, "dark"),
+        d2Renderer.render(diagram.source, "light"),
+        d2Renderer.render(diagram.source, "dark"),
       ]);
 
-      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}/${input.versionName}` : undefined;
-      const sourceUrl = `/api/d/${input.shortlink}/versions/${input.versionName}/source`;
-      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl, sourceUrl, versionInfo });
-      logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated D2 HTML page");
+      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}` : undefined;
+      html = htmlGenerator.generateD2(lightSvg, darkSvg, input.shortlink, { embedUrl });
+      logger.debug({ shortlink: input.shortlink }, "Generated D2 HTML page");
     } else {
       if (!mermaidRenderer) {
         throw new RenderNotAvailableError("Mermaid SSR not configured. Set CHROME_PATH environment variable.");
       }
 
-      const svg = await mermaidRenderer.render(versionData.source);
-      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}/${input.versionName}` : undefined;
-      const sourceUrl = `/api/d/${input.shortlink}/versions/${input.versionName}/source`;
-      html = htmlGenerator.generateMermaid(svg, input.shortlink, { embedUrl, sourceUrl, versionInfo });
-      logger.debug({ shortlink: input.shortlink, version: input.versionName }, "Generated Mermaid HTML page");
+      const svg = await mermaidRenderer.render(diagram.source);
+      const embedUrl = baseUrl ? `${baseUrl}/e/${input.shortlink}` : undefined;
+      html = htmlGenerator.generateMermaid(svg, input.shortlink, { embedUrl });
+      logger.debug({ shortlink: input.shortlink }, "Generated Mermaid HTML page");
     }
 
-    return {
-      html,
-      contentType: "text/html",
-    };
+    return { html, contentType: "text/html" };
   },
 });
