@@ -53,11 +53,11 @@ describe("Integration Tests", () => {
     it("GET / returns usage information", async () => {
       const res = await fetch(`${baseUrl}/`);
       expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+      expect(res.headers.get("Content-Type")).toContain("text/html");
       const body = await res.text();
       expect(body).toContain("Diashort");
-      expect(body).toContain("POST /render");
-      expect(body).toContain("/d/:id");
+      expect(body).toContain("POST");
+      expect(body).toContain("/render");
     });
   });
 

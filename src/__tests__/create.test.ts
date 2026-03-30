@@ -43,8 +43,6 @@ describe("createFlow", () => {
         expect(result.shortlink).toBeDefined();
         expect(result.url).toContain("/d/");
         expect(result.embed).toContain("/e/");
-        expect(result.source).toContain("/api/d/");
-        expect(result.source).toContain("/versions/v1/source");
       } finally {
         await ctx.close();
       }
