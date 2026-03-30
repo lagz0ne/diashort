@@ -210,6 +210,20 @@ export function indexPage(origin: string): string {
     .pg-result a:hover { border-color: var(--red); }
     .pg-result .error { color: var(--red); }
 
+    .pg-preview {
+      margin-top: 0.75rem;
+      border: 1px solid var(--stone-light);
+      padding: 1rem;
+      text-align: center;
+      overflow: auto;
+      max-height: 420px;
+      background: white;
+    }
+
+    .pg-preview:empty { display: none; }
+
+    .pg-preview svg { max-width: 100%; height: auto; }
+
     /* ── Sections ──────────────────────────────────── */
     .section { margin-bottom: 3rem; }
 
@@ -443,6 +457,7 @@ export function indexPage(origin: string): string {
   B -->|Yes| C[Process]
   B -->|No| D[Reject]
   C --> E[Respond]</textarea>
+        <div class="pg-preview" id="pg-preview"></div>
         <div class="pg-result" id="pg-result"></div>
       </div>
       <figcaption>
@@ -575,11 +590,14 @@ export function indexPage(origin: string): string {
     var pgFormat = document.getElementById('pg-format');
     var pgSubmit = document.getElementById('pg-submit');
     var pgResult = document.getElementById('pg-result');
+    var pgPreview = document.getElementById('pg-preview');
     var userEdited = false;
+    var mermaidReady = false;
+    var renderCount = 0;
 
     pgSource.addEventListener('input', function() { userEdited = true; });
 
-    pgSubmit.addEventListener('click', submitDemo);
+    pgSubmit.addEventListener('click', function() { submitDemo(); });
 
     pgSource.addEventListener('keydown', function(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -593,12 +611,29 @@ export function indexPage(origin: string): string {
         return;
       }
       userEdited = false;
+      pgPreview.innerHTML = '';
+      pgResult.textContent = '';
       pgSource.value = this.value === 'd2'
         ? 'server -> db: query\\ndb -> server: results\\nserver -> client: JSON response'
         : 'graph TD\\n  A[User Request] --> B{Auth?}\\n  B -->|Yes| C[Process]\\n  B -->|No| D[Reject]\\n  C --> E[Respond]';
     });
 
-    function submitDemo() {
+    function loadMermaid() {
+      return new Promise(function(resolve, reject) {
+        if (mermaidReady) { resolve(); return; }
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+        s.onload = function() {
+          mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'strict' });
+          mermaidReady = true;
+          resolve();
+        };
+        s.onerror = function() { reject(new Error('Failed to load Mermaid library')); };
+        document.head.appendChild(s);
+      });
+    }
+
+    async function submitDemo() {
       var source = pgSource.value.trim();
       var format = pgFormat.value;
 
@@ -610,28 +645,48 @@ export function indexPage(origin: string): string {
       pgSubmit.disabled = true;
       pgSubmit.textContent = 'Rendering\\u2026';
       pgResult.textContent = '';
+      pgPreview.innerHTML = '';
 
-      fetch(ORIGIN + '/render', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: source, format: format }),
-      })
-        .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
-        .then(function(res) {
-          if (!res.ok) {
-            showError(res.data.error || 'Unknown error');
-          } else {
-            showSuccess(res.data.url, res.data.embed);
-          }
-        })
-        .catch(function(err) { showError('Network error: ' + err.message); })
-        .finally(function() {
+      /* ── Client-side Mermaid preview ─────────────── */
+      if (format === 'mermaid') {
+        try {
+          await loadMermaid();
+          var rendered = await mermaid.render('mmd-' + (++renderCount), source);
+          pgPreview.innerHTML = rendered.svg;
+        } catch (e) {
+          showError(e.message || 'Invalid Mermaid syntax');
           pgSubmit.disabled = false;
           pgSubmit.textContent = 'Render';
+          return;
+        }
+      }
+
+      /* ── Create shortlink via API ────────────────── */
+      try {
+        var r = await fetch(ORIGIN + '/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: source, format: format }),
         });
+        var data = await r.json();
+        if (!r.ok) {
+          showError(data.error || 'Unknown error');
+        } else {
+          showSuccess(data.url, data.embed, format);
+        }
+      } catch (err) {
+        if (pgPreview.innerHTML) {
+          showError('Preview rendered, but shortlink creation failed.');
+        } else {
+          showError('Network error: ' + err.message);
+        }
+      } finally {
+        pgSubmit.disabled = false;
+        pgSubmit.textContent = 'Render';
+      }
     }
 
-    function showSuccess(url, embed) {
+    function showSuccess(url, embed, format) {
       pgResult.textContent = '';
       var link = document.createElement('a');
       link.href = url;
@@ -641,6 +696,13 @@ export function indexPage(origin: string): string {
       var embedCode = document.createElement('code');
       embedCode.textContent = embed;
       pgResult.append('\\u2713 ', link, document.createElement('br'), 'Embed: ', embedCode);
+      if (format === 'd2') {
+        pgResult.append(document.createElement('br'));
+        var note = document.createElement('span');
+        note.style.cssText = 'font-size:0.7rem;color:var(--stone)';
+        note.textContent = 'D2 preview requires server-side rendering.';
+        pgResult.append(note);
+      }
     }
 
     function showError(msg) {

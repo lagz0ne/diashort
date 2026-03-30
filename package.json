@@ -13,7 +13,8 @@
     "docker:run": "docker run -p 3000:3000 --rm diashort"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "playwright": "^1.58.2"
   },
   "peerDependencies": {
     "typescript": "^5"
