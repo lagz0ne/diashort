@@ -673,6 +673,15 @@ export function indexPage(origin: string): string {
           showError(data.error || 'Unknown error');
         } else {
           showSuccess(data.url, data.embed, format);
+          /* ── D2: fetch server-rendered SVG as preview ── */
+          if (format === 'd2' && data.embed) {
+            try {
+              var svgRes = await fetch(data.embed);
+              if (svgRes.ok) {
+                pgPreview.innerHTML = await svgRes.text();
+              }
+            } catch (_) { /* preview failed, shortlink still works */ }
+          }
         }
       } catch (err) {
         if (pgPreview.innerHTML) {
@@ -696,13 +705,6 @@ export function indexPage(origin: string): string {
       var embedCode = document.createElement('code');
       embedCode.textContent = embed;
       pgResult.append('\\u2713 ', link, document.createElement('br'), 'Embed: ', embedCode);
-      if (format === 'd2') {
-        pgResult.append(document.createElement('br'));
-        var note = document.createElement('span');
-        note.style.cssText = 'font-size:0.7rem;color:var(--stone)';
-        note.textContent = 'D2 preview requires server-side rendering.';
-        pgResult.append(note);
-      }
     }
 
     function showError(msg) {
